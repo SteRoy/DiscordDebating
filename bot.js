@@ -1,10 +1,23 @@
 const Discord = require('discord.js');
 const fs = require('fs');
+const spawn = require("child_process").spawn;
 const client = new Discord.Client();
 
-const token = "";
+let token;
+let tournament_url;
+let sessionid;
+let csrftoken;
+
 
 var competition;
+fs.readFile(".config", (err,data) => {
+	dict = JSON.parse(data);
+	token = dict.token;
+	sessionid = dict.sessionid;
+	tournament_url = dict["tournament_url"];
+	csrftoken = dict.csrftoken;
+	client.login(token);
+});
 fs.readFile('tournament.json', (err, data) => {
 	competition = JSON.parse(data);
 	console.log(`Restoring a tournament with ${competition.teams.length} registered teams, and ${competition.judges.length} judges.`);
@@ -51,7 +64,7 @@ function helpCommand(msg) {
 				name: "Chair Judge Commands", value: "None"
 			},
 			{
-				name: "Tab Commands", value: "None"
+				name: "Tab Commands", value: "**!readdraw** - Read the draw from tab \n **!run-team-draw** - Create debating venues and allocate teams \n **!venue** <Name> - Manually create a debating venue \n **!delvenue** <Name> - Delete a debating venue \n **!allocate** <@Name> <Room> - Manually allocate a person to a voice channel"
 			},
 			{
 				name: "Speaker Commands", value: "**!register** <Your Name> <Speaker/Judge> - register yourself as a Speaker"
@@ -187,8 +200,62 @@ function allocateUserToRoom(guild, userID, channelName, msg) {
 	}
 }
 
-function debugAllocater(msg) {
-	allocateUserToRoom(msg.guild, msg.member.id, "Room #1");
+function assignTeamToRoom(guild, userID, roomName, pos, msg) {
+	if (!(["OG", "OO", "CG", "CO"].has(pos))) {
+		msg.reply("Invalid Position");
+	} else {
+		// position validated
+		guild.channels.find(channel => channel.name === roomName);
+		if (typeof(category) !== typeof(undefined)) {
+			// TODO: Implement assignment to a given room.
+		} else {
+			// Room not found rip
+			msg.reply("Room not valid");
+		}
+	}
+}
+
+function getAndReadDraw(msg) {
+	const current_round = competition.rounds.length + 1;
+	const python = spawn('python', ['draw-processor.py', tournament_url, sessionid, csrftoken, current_round]);
+	
+	python.stdout.on('close', (err) => {
+		console.log("Trying to read file");
+		fs.readFile(`round-${current_round}.json`, (err, data) => {
+			const x = JSON.parse(data);
+			competition.rounds.push(x);
+			console.log(x);
+			let teamcount = 0;
+			let adjcount = 0;
+			let chaircount = 0;
+			x.forEach(venue => {
+				venue.teams.forEach(t => {
+					teamcount++;
+				});
+				venue.panel.forEach(a => {
+					adjcount++;
+				});
+				if (venue.chair !== "") {
+					chaircount++;
+				}
+			});
+			msg.reply(`Loaded ${x.length} venues comprised of ${teamcount} teams, ${chaircount} chairs and ${adjcount} panellists.`);
+			// saveToFile();
+		});
+	});
+}
+
+function runTeamDraw(guild, msg) {
+	competition.rounds[competition.rounds.length - 1].forEach(debate => {
+		createDebatingRoom(guild, debate.venue);
+		msg.reply(`Assigning OG: ${debate.teams[0]}, OO: ${debate.teams[1]}, CG: ${debate.teams[2]}, CO: ${debate.teams[3]} to ${debate.venue}`);
+	});
+}
+
+function revertTeamDraw(guild, msg) {
+	competition.rounds[competition.rounds.length - 1].forEach(debate => {
+		deleteCategory(guild, debate.venue, msg);
+	});
 }
 
 client.on('ready', () => {
@@ -263,8 +330,33 @@ client.on('message', msg => {
 					}
 				});
 				break;
+			case "!readdraw":
+				isAuthorised(msg.member, "Convenor", true).then(auth => {
+					if (auth) {
+						getAndReadDraw(msg);
+					} else {
+						msg.reply(`Only convenors can use this command.`);
+					}
+				});
+				break;
+			case "!run-team-draw":
+				isAuthorised(msg.member, "Convenor", true).then(auth => {
+					if (auth) {
+						runTeamDraw(msg.guild, msg);
+					} else {
+						msg.reply(`Only convenors can use this command.`);
+					}
+				});
+				break;
+			case "!revert-team-draw":
+				isAuthorised(msg.member, "Convenor", true).then(auth => {
+					if (auth) {
+						revertTeamDraw(msg.guild, msg);
+					} else {
+						msg.reply(`Only convenors can use this command.`);
+					}
+				});
+				break;
 		}
 	}
 });
-
-client.login(token);
