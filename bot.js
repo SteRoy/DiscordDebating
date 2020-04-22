@@ -57,7 +57,7 @@ function helpCommand(msg) {
 				name: "Speaker Commands", value: "**!register** <Your Name> <Speaker/Judge> - register yourself as a Speaker"
 			},
 			{
-				name: "Team Commands", value: "**!team** <@Teammate> <Team Name> - register a team with your teammate."
+				name: "Team Commands", value: "**!team** <@Teammate> <Team Name> - register a team with your teammate. \n **!disband** - disbands your current team."
 			}
 		);
 	
@@ -91,7 +91,9 @@ function storeJudge(adj, fname) {
 }
 
 function saveToFile() {
-	fs.writeFile('tournament.json', JSON.stringify(competition), err => {console.error(err)});
+	fs.writeFile('tournament.json', JSON.stringify(competition), err => {
+		if (err) throw err;
+		});
 }
 
 function unregisterTeam(msg) {
@@ -138,6 +140,57 @@ function registerTeam(msg, name) {
 	}
 }
 
+function getChannelByName(guild, channelName) {
+	return guild.channels.cache.find(channel => channel.name === channelName);
+}
+
+function createDebatingRoom(guild, roomName) {
+	// Create Category
+	const debatePositions = ["OG", "OO", "CG", "CO"];
+	guild.channels.create(roomName, {type: "category"}).then(category => {
+		debatePositions.forEach(pos => {
+			guild.channels.create(`${pos} - Prep Room [${roomName}]`, { type: "voice",  parent: category.id, userLimit: 2 });
+		});
+		guild.channels.create(`${roomName} - Debate Room`, { type: "voice",  parent: category.id});
+		guild.channels.create(`${roomName} - Judges Room`, { type: "voice",  parent: category.id});
+		guild.channels.create(`${roomName} - Info`, { type: "text",  parent: category.id});
+	});
+}
+
+function deleteCategory(guild, roomName, msg) {
+	const category = guild.channels.cache.find(channel => channel.name === roomName);
+	if (typeof(category) !== typeof(null) && typeof(category) !== typeof(undefined)) {
+		category.children.forEach(channel => {
+			channel.delete();
+		});
+		category.delete();
+		msg.reply(`I've deleted ${venuename}`);
+	} else {
+		msg.reply(`Channel not found`);
+	}
+}
+
+function allocateUserToRoom(guild, userID, channelName, msg) {
+	const newChannel = getChannelByName(guild, channelName);
+	console.log(newChannel);
+	if (typeof(newChannel) === typeof(undefined)) {
+		msg.reply(`You must specify a valid channel`);
+	} else {
+		guild.members.fetch(userID).then(user => {
+			if (user.voice.channel !== null){
+				user.voice.setChannel(newChannel);
+				msg.reply("Allocated");
+			} else {
+				console.log(`${user.nickname} is not in a voice channel - ${newChannel.name}`);
+			}
+		});
+	}
+}
+
+function debugAllocater(msg) {
+	allocateUserToRoom(msg.guild, msg.member.id, "Room #1");
+}
+
 client.on('ready', () => {
   console.log(`Logged in as ${client.user.tag}!`);
 });
@@ -168,11 +221,47 @@ client.on('message', msg => {
 				}
 				break;
 			case "!disband":
-				if (isAuthorised(msg.member, "On Team", true)) {
-					unregisterTeam(msg);
+				isAuthorised(msg.member, "On Team", true).then(auth => {
+					if (auth) {
+						unregisterTeam(msg);
+					} else {
+						msg.reply("You must be on a team to disband it.");
+					}
+				});
+				break;
+			case "!allocate":
+				if (command.length <= 2) {
+					msg.reply("You must supply a user, and a room");
 				} else {
-					msg.reply("You must be on a team to disband it.");
+					isAuthorised(msg.member, "Convenor", true).then(auth => {
+						if (auth) {
+							allocateUserToRoom(msg.guild, msg.mentions.members.first().id, command.splice(2).join(" "), msg);
+						} else {
+							msg.reply(`Only convenors can use this command.`);
+						}
+					});
 				}
+				break;
+			case "!venue":
+				isAuthorised(msg.member, "Convenor", true).then(auth => {
+					if (auth) {
+						const venuename = command.splice(1).join(" ");
+						createDebatingRoom(msg.guild, venuename);
+						msg.reply(`I've created ${venuename}`);
+					} else {
+						msg.reply(`Only convenors can use this command.`);
+					}
+				});
+				break;
+			case "!delvenue":
+				isAuthorised(msg.member, "Convenor", true).then(auth => {
+					if (auth) {
+						const venuename = command.splice(1).join(" ");
+						deleteCategory(msg.guild, venuename, msg);
+					} else {
+						msg.reply(`Only convenors can use this command.`);
+					}
+				});
 				break;
 		}
 	}
