@@ -159,12 +159,12 @@ function createDebatingRoom(guild, roomName) {
 
 function deleteCategory(guild, roomName, msg) {
 	const category = guild.channels.cache.find(channel => channel.name === roomName);
-	if (typeof(category) !== typeof(null) && typeof(category) !== typeof(undefined)) {
+	if (typeof(category) !== typeof(undefined)) {
 		category.children.forEach(channel => {
 			channel.delete();
 		});
 		category.delete();
-		msg.reply(`I've deleted ${venuename}`);
+		msg.reply(`I've deleted ${roomName}`);
 	} else {
 		msg.reply(`Channel not found`);
 	}
