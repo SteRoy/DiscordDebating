@@ -1,9 +1,14 @@
 const Discord = require('discord.js');
+const fs = require('fs');
 const client = new Discord.Client();
 
 const token = "";
 
-var competition = {teams: [], judges: []};
+var competition;
+fs.readFile('tournament.json', (err, data) => {
+	competition = JSON.parse(data);
+	console.log(`Restoring a tournament with ${competition.teams.length} registered teams, and ${competition.judges.length} judges.`);
+});
 
 function isAuthorised(user, level, exclusive) {
 	if (exclusive) {
@@ -68,6 +73,7 @@ function registerUser(msg, name, type) {
 			targetGM.setNickname(fullname).catch(console.error);
 			targetGM.roles.add(speakerRole).catch(console.error);
 			msg.reply(`Registered ${fullname} as a ${roleName}.`);
+			storeJudge(targetGM, fullname);
 		});
 	} else {
 		msg.reply("You have already registered!");
@@ -76,6 +82,16 @@ function registerUser(msg, name, type) {
 
 function storeTeam(speakerOne, speakerTwo, teamName) {
 	competition.teams.push({name: teamName, speakers: [speakerOne.id, speakerTwo.id]});
+	saveToFile();
+}
+
+function storeJudge(adj, fname) {
+	competition.judges.push({name: fname, id: adj.id});
+	saveToFile();
+}
+
+function saveToFile() {
+	fs.writeFile('tournament.json', JSON.stringify(competition), err => {console.error(err)});
 }
 
 function unregisterTeam(msg) {
@@ -91,6 +107,7 @@ function unregisterTeam(msg) {
 		});
 	});
 	competition.teams.splice(teamRemoveIndex, 1);
+	saveToFile();
 	msg.reply("Your team has been disbanded.");
 }
 
