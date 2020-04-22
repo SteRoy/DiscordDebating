@@ -3,14 +3,13 @@ const client = new Discord.Client();
 
 const token = "";
 
-var competition = {"teams": [], "judges": []};
+var competition = {teams: [], judges: []};
 
 function isAuthorised(user, level, exclusive) {
 	if (exclusive) {
-		const highestRole = user.roles.highest;
-		if (highestRole.name === level) {
-			return true;
-		}
+		return doesUserHaveRole(user, level).then(res => {
+			return res;
+		});
 	} else {
 		getRoleByName(user.guild.roles, level).then(role => {
 			if (highestRole.comparePositionTo(role.first()) >= 0) {
@@ -22,7 +21,7 @@ function isAuthorised(user, level, exclusive) {
 }
 
 function doesUserHaveRole(user, roleName) {
-	return getRoleByName(msg.guild.roles, roleName).then(roleID => {
+	return getRoleByName(user.guild.roles, roleName).then(roleID => {
 			if (user.roles.cache.has(roleID.firstKey())) {
 				return true;
 			} else {
@@ -76,7 +75,23 @@ function registerUser(msg, name, type) {
 }
 
 function storeTeam(speakerOne, speakerTwo, teamName) {
-	// competition.teams.push({name: teamName, speakers: [speakerOne.id, speakerTwo.id]});
+	competition.teams.push({name: teamName, speakers: [speakerOne.id, speakerTwo.id]});
+}
+
+function unregisterTeam(msg) {
+	const teamMember = msg.member;
+	const teamsToRemove = competition.teams.filter(team => team.speakers.includes(teamMember.id) );
+	const teamRemoveIndex = competition.teams.indexOf(teamsToRemove[0]);
+	getRoleByName(msg.guild.roles, "On Team").then(teamRole => {
+		teamsToRemove[0].speakers.forEach(speakerID => {
+			msg.guild.members.fetch(speakerID).then(speakerObject => {
+				speakerObject.roles.remove(teamRole).catch(console.error);
+				speakerObject.setNickname(`${speakerObject.nickname.split("] ").pop()}`);
+			});
+		});
+	});
+	competition.teams.splice(teamRemoveIndex, 1);
+	msg.reply("Your team has been disbanded.");
 }
 
 function registerTeam(msg, name) {
@@ -90,7 +105,7 @@ function registerTeam(msg, name) {
 			if (speakerOne.roles.cache.has(speakerRole.firstKey()) && speakerTwo.roles.cache.has(speakerRole.firstKey())) {
 				getRoleByName(msg.guild.roles, "On Team").then(teamRole => {
 					if (speakerOne.roles.cache.has(teamRole.firstKey()) || speakerTwo.roles.cache.has(teamRole.firstKey())) {
-						msg.reply("You and your team mate cannot already be on a team.");
+						msg.reply("You have already registered a team.");
 					} else {
 						storeTeam(speakerOne, speakerTwo, teamname);
 						speakerOne.setNickname(`[${teamname}] ${speakerOne.nickname.split("] ").pop()}`.substring(0,32));
@@ -133,6 +148,13 @@ client.on('message', msg => {
 					msg.reply("You must mention your teammate by placing the @ symbol before their name");
 				} else {
 					registerTeam(msg, command.slice(2));
+				}
+				break;
+			case "!disband":
+				if (isAuthorised(msg.member, "On Team", true)) {
+					unregisterTeam(msg);
+				} else {
+					msg.reply("You must be on a team to disband it.");
 				}
 				break;
 		}
