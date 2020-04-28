@@ -4,6 +4,7 @@ const spawn = require("child_process").spawn;
 const client = new Discord.Client();
 
 // TODO: remember to put the saveToFiles() back into the readreg and readdraw commands
+// TODO: add indicator that reg data is imported
 
 let token;
 let tournament_url;
@@ -203,16 +204,15 @@ function deleteCategory(guild, roomName, msg) {
 	}
 }
 
-function allocateUserToRoom(guild, userID, channelName, msg) {
+function allocateUserToRoom(guild, userID, channelName) {
 	const newChannel = getChannelByName(guild, channelName);
 	console.log(newChannel);
 	if (typeof(newChannel) === typeof(undefined)) {
-		msg.reply(`You must specify a valid channel`);
+		console.log(`Invalid assignment channel specified for ${userID$} - ${channelName}`);
 	} else {
 		guild.members.fetch(userID).then(user => {
 			if (user.voice.channel !== null){
 				user.voice.setChannel(newChannel);
-				msg.reply("Allocated");
 			} else {
 				console.log(`${user.nickname} is not in a voice channel - ${newChannel.name}`);
 			}
@@ -220,18 +220,21 @@ function allocateUserToRoom(guild, userID, channelName, msg) {
 	}
 }
 
-function assignTeamToRoom(guild, userID, roomName, pos, msg) {
-	if (!(["OG", "OO", "CG", "CO"].has(pos))) {
-		msg.reply("Invalid Position");
+function assignTeamToRoom(guild, teamName, roomName, pos) {
+	// position validated
+	guild.channels.find(channel => channel.name === roomName);
+	if (typeof(category) !== typeof(undefined)) {
+		const speakers competition.teams.find(t => t.name.toLowerCase() === teamName.toLowerCase()).speakers;
+		speakers.forEach(s => {
+			if (pos !== "debate") {
+				allocateUserToRoom(guild, s, `${pos} - Prep Room [${roomName}]`);
+			} else {
+				allocateUserToRoom(guild, s, `${roomName} - Debate Room`);
+			}
+		});
 	} else {
-		// position validated
-		guild.channels.find(channel => channel.name === roomName);
-		if (typeof(category) !== typeof(undefined)) {
-			// TODO: Implement assignment to a given room.
-		} else {
-			// Room not found rip
-			msg.reply("Room not valid");
-		}
+		// Room not found rip
+		console.log(`Failed to assign ${teamName} in ${pos} to ${roomName}.`);
 	}
 }
 
@@ -289,6 +292,23 @@ function processRegData(msg) {
 }
 
 function allocateAllSpeakersAndJudges(guild) {
+	competition.rounds[competition.rounds.length - 1].forEach(debate => {
+		// Let's allocate chair first
+		const chair = competition.judges.find(j => { j.name.toLowerCase() === debate.chair.toLowerCase() });
+		allocateUserToRoom(guild, chair, `${debate.name} - Debate Room`);
+		if (debate.panel.length > 0) {
+			// allocate panel if we must
+			debate.panel.forEach(j => {
+				const judgeIdentifier = competition.judges.find(judge => { judge.name.toLowerCase() === j.name.toLowerCase() });
+				allocateUserToRoom(guild, judgeIdentifier, `${debate.name} - Debate Room`)
+			});
+		}
+		
+		debate.teams.forEach(t => {
+			assignTeamToRoom(guild, t.name, "debate")
+		});
+		
+	});
 	console.log("Prep time over");
 }
 
@@ -298,11 +318,24 @@ function runTeamDraw(guild, msg) {
 			createDebatingRoom(guild, debate.venue);
 			competition.venues.push(debate.venue);
 		}
-		msg.reply(`Assigning OG: ${debate.teams[0]}, OO: ${debate.teams[1]}, CG: ${debate.teams[2]}, CO: ${debate.teams[3]} to ${debate.venue}`);
+		const positions = ["OG", "OO", "CG", "CO"];
+		for (let i = 0; i < positions.length; i++ ) {
+			assignTeamToRoom(guild, debate.teams[i], debate.venue, positions[i]);
+			console.log(`Trying to assign ${debate.teams[i]} to ${positions[i]} in ${debate.venue}`);
+		}
 	});
 	comp_status = "prep";
 	prep_start = new Date();
+	setTimeout(() => { timeElapsed(5) }, 300000, "5minElapsed");
+	setTimeout(() => { timeElapsed(10) }, 600000, "10minElapsed");
+	setTimeout(() => { timeElapsed(13) }, 780000, "13minElapsed");
+	setTimeout(() => { timeElapsed(13) }, 840000, "14minElapsed");
 	setTimeout(() => { allocateAllSpeakersAndJudges(guild) }, 900000, "prepTimeFinishes");
+}
+
+function timeElapsed(mins, msg) {
+	const announceChannel = msg.guild.channels.cache.find(channel => channel.name === "announcements");
+	announceChannel.send(`@everyone You have ${15 - mins} minute(s) remaining of preparation time.`);
 }
 
 function prepTimeLeft(msg) {
