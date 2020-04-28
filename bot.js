@@ -216,7 +216,7 @@ function registerTeam(msg, name) {
 			if (speakerOne.roles.cache.has(speakerRole.id) && speakerTwo.roles.cache.has(speakerRole.id)) {
 				if (competition.regdata.teams.includes(teamname.toLowerCase())) {
 					getRoleByName(msg.guild.roles, "On Team").then(teamRole => {
-						if (speakerOne.roles.cache.has(teamRole.id) || speakerTwo.roles.cache.has(teamRole.id) || typeof(undefined) === typeof(competition.teams.find(t => t.name === name.toLowerCase())) )) {
+						if (speakerOne.roles.cache.has(teamRole.id) || speakerTwo.roles.cache.has(teamRole.id) || typeof(undefined) === typeof(competition.teams.find(t => t.name === name.toLowerCase())) ) {
 							msg.reply("You have already registered a team.");
 						} else {
 							storeTeam(speakerOne, speakerTwo, teamname);
