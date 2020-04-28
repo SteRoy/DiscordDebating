@@ -88,12 +88,17 @@ function registerUser(msg, name, type) {
 	const roleName = (type.toLowerCase() == "speaker" ? "Speaker" : "Judge");
 	if (isAuthorised(targetGM, "@everyone", true)) {
 		getRoleByName(msg.guild.roles, roleName).then(speakerRole => {
+			if (roleName === "Judge") {
+				if (competition.regdata.judges.includes(fullname.toLowerCase())) {
+					storeJudge(targetGM, fullname);
+				} else {
+					msg.reply("You are not a registered adjudicator");
+					return false;
+				}
+			}
 			targetGM.setNickname(fullname).catch(console.error);
 			targetGM.roles.add(speakerRole).catch(console.error);
 			msg.reply(`Registered ${fullname} as a ${roleName}.`);
-			if (roleName == "Judge") {
-				storeJudge(targetGM, fullname);
-			}
 		});
 	} else {
 		msg.reply("You have already registered!");
