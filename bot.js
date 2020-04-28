@@ -16,6 +16,9 @@ let csrftoken;
 let comp_status;
 let prep_start;
 
+let motion = "";
+let infoslide = "";
+
 
 var competition;
 fs.readFile(".config", (err,data) => {
@@ -79,13 +82,13 @@ function helpCommand(msg) {
 				name: "Chair Judge Commands", value: "**!prepleft** - Notifies you of the amount of preperation time remaining"
 			},
 			{
-				name: "Tab Commands", value: "**!readreg** - Read the registered team csvs into memory \n **!readdraw** - Read the draw from tab \n **!run-team-draw** - Create debating venues and allocate teams \n **!venue** <Name> - Manually create a debating venue \n **!delvenue** <Name> - Delete a debating venue \n **!allocate** <@Name> <Room> - Manually allocate a person to a voice channel"
+				name: "Tab Commands", value: "**!motion** <Motion> - Set the current round motion afte reading draw \n **!infoslide** <Infoslide> - After reading the draw, set the current round info slide \n **!cancelmotion** - Stops the automatic release of motion after allocations (60s grace period post-allocation) \n **!readreg** - Read the registered team csvs into memory \n **!readdraw** - Read the draw from tab \n **!run-team-draw** - Create debating venues and allocate teams \n **!venue** <Name> - Manually create a debating venue \n **!delvenue** <Name> - Delete a debating venue \n **!allocate** <@Name> <Room> - Manually allocate a person to a voice channel"
 			},
 			{
 				name: "Speaker Commands", value: "**!register** <Your Name> <Speaker/Judge> - register yourself as a Speaker"
 			},
 			{
-				name: "Team Commands", value: "**!team** <@Teammate> <Team Name> - register a team with your teammate. \n **!disband** - disbands your current team."
+				name: "Team Commands", value: "**!team** <@Teammate> <Team Name> - register a team with your teammate. \n **!disband** - disbands your current team. \n **!checkin** - check in your team."
 			}
 		);
 	
@@ -249,7 +252,6 @@ function getAndReadDraw(msg) {
 	const python = spawn('python', ['draw-processor.py', tournament_url, sessionid, csrftoken, current_round]);
 	
 	python.stdout.on('close', (err) => {
-		console.log("Trying to read file");
 		fs.readFile(`round-${current_round}.json`, (err, data) => {
 			const x = JSON.parse(data);
 			competition.rounds.push(x);
@@ -279,7 +281,9 @@ function getAndReadDraw(msg) {
 				}
 			});
 			msg.reply(`Loaded ${x.length} venues comprised of ${teamcount} teams, ${chaircount} chairs and ${adjcount} panellists.`);
-			//saveToFile();
+			motion = "";
+			infoslide = "";
+			saveToFile();
 		});
 	});
 }
@@ -291,7 +295,7 @@ function processRegData(msg) {
 			const x = JSON.parse(data);
 			competition.regdata = x;
 			msg.reply(`Loaded ${competition.regdata.teams.length} registered teams, ${competition.regdata.judges.length} registered judges!`);
-			//saveToFile();
+			saveToFile();
 		});
 	});
 }
@@ -338,6 +342,7 @@ function runTeamDraw(guild, msg) {
 	});
 	comp_status = "prep";
 	prep_start = new Date();
+	setTimeout(releaseInfoslideAndMotionProcessor, 60000, "motionRelease");
 	setTimeout(() => { timeElapsed(5, msg) }, 300000, "5minElapsed");
 	setTimeout(() => { timeElapsed(10, msg) }, 600000, "10minElapsed");
 	setTimeout(() => { timeElapsed(13, msg) }, 780000, "13minElapsed");
@@ -345,9 +350,38 @@ function runTeamDraw(guild, msg) {
 	setTimeout(() => { allocateAllSpeakersAndJudges(guild) }, 900000, "prepTimeFinishes");
 }
 
+function releaseInfoslideAndMotionProcessor() {
+	const announceChannel = msg.guild.channels.cache.find(channel => channel.name === "announcements");
+	if (infoslide !== "") {
+		announceChannel.send(`@everyone, This round has an infoslide: ${infoslide}. The motion will be announced in 60 seconds.`);
+		setTimeout(sendMotion, 60000, "motionRelease");
+	} else {
+		sendMotion();
+	}
+}
+
+function sendMotion() {
+	const announceChannel = msg.guild.channels.cache.find(channel => channel.name === "announcements");
+	announceChannel.send(`@everyone, The motion for this round reads: ${motion}`);
+}
+
+function stopMotionRelease() {
+	clearTimeout("motionRelease");
+}
+
 function timeElapsed(mins, msg) {
 	const announceChannel = msg.guild.channels.cache.find(channel => channel.name === "announcements");
 	announceChannel.send(`@everyone You have ${15 - mins} minute(s) remaining of preparation time.`);
+}
+
+function setMotion(msg, motionText) {
+	motion = motionText;
+	msg.reply(`Motion: ${motion}`);
+}
+
+function setInfo(msg, infoText) {
+	infoslide = infoText;
+	msg.reply(`InfoSlide: ${infoslide}`);
 }
 
 function prepTimeLeft(msg) {
@@ -591,6 +625,41 @@ client.on('message', msg => {
 						} else {
 							msg.reply("You must include a type to return (Judge/Speaker)!");
 						}
+					} else {
+						msg.reply(`Only convenors can use this command.`);
+					}
+				});
+				break;
+			case "!motion":
+				isAuthorised(msg.member, "Convenor", true).then(auth => {
+					if (auth) {
+						if (command.length > 1) {
+							setMotion(msg, command.slice(1).join(" "));
+						} else {
+							msg.reply("You must specify a motion");
+						}
+					} else {
+						msg.reply(`Only convenors can use this command.`);
+					}
+				});
+				break;
+			case "!infoslide":
+				isAuthorised(msg.member, "Convenor", true).then(auth => {
+					if (auth) {
+						if (command.length > 1) {
+							setInfo(msg, command.slice(1).join(" "));
+						} else {
+							msg.reply("You must specify an infoslide!");
+						}
+					} else {
+						msg.reply(`Only convenors can use this command.`);
+					}
+				});
+				break;
+			case "!cancelmotion":
+				isAuthorised(msg.member, "Convenor", true).then(auth => {
+					if (auth) {
+						stopMotionRelease();
 					} else {
 						msg.reply(`Only convenors can use this command.`);
 					}
