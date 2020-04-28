@@ -253,6 +253,13 @@ function createDebatingRoom(guild, roomName) {
 	});
 }
 
+function createAllDrawVenues(msg) {
+	competition.rounds[competition.rounds.length - 1].forEach(debate => {
+		createDebatingRoom(msg.guild, debate.venue);
+	});
+	msg.reply("Done");
+}
+
 function deleteCategory(guild, roomName, msg) {
 	const category = guild.channels.cache.find(channel => channel.name === roomName);
 	if (typeof(category) !== typeof(undefined)) {
@@ -694,6 +701,15 @@ client.on('message', msg => {
 				isAuthorised(msg.member, "Convenor", true).then(auth => {
 					if (auth) {
 						getAndReadDraw(msg);
+					} else {
+						msg.reply(`Only convenors can use this command.`);
+					}
+				});
+				break;
+			case "!drawvenues":
+				isAuthorised(msg.member, "Convenor", true).then(auth => {
+					if (auth) {
+						createAllDrawVenues(msg);
 					} else {
 						msg.reply(`Only convenors can use this command.`);
 					}
