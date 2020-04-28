@@ -4,9 +4,8 @@ const spawn = require("child_process").spawn;
 const client = new Discord.Client();
 
 // TODO: remember to put the saveToFiles() back into the readreg and readdraw commands
-// TODO: add indicator that reg data is imported
 
-const defaultTournament = {"teams":[],"venues":[],"judges":[],"rounds":[],"regdata":{"teams":[],"judges":[]}};
+const defaultTournament = {"teams":[],"venues":[],"judges":[],"speakers": [], "rounds":[],"regdata":{"teams":[],"judges":[], "speakers": [], "childrenJ": [], "childrenS": []}};
 
 let token;
 let tournament_url;
@@ -35,7 +34,8 @@ fs.readFile('tournament.json', (err, data) => {
 });
 
 function resetComp() {
-	competition = defaultTournament;
+	competition = Object.assign(competition, defaultTournament);
+	console.log("Resetting Tournament");
 	saveToFile();
 	
 	// TODO: strip everybody of Judge/Speaker roles.
@@ -48,7 +48,7 @@ function isAuthorised(user, level, exclusive) {
 		});
 	} else {
 		getRoleByName(user.guild.roles, level).then(role => {
-			if (highestRole.comparePositionTo(role.first()) >= 0) {
+			if (highestRole.comparePositionTo(role) >= 0) {
 				return true;
 			}
 		});
@@ -58,7 +58,7 @@ function isAuthorised(user, level, exclusive) {
 
 function doesUserHaveRole(user, roleName) {
 	return getRoleByName(user.guild.roles, roleName).then(roleID => {
-			if (user.roles.cache.has(roleID.firstKey())) {
+			if (user.roles.cache.has(roleID.id)) {
 				return true;
 			} else {
 				return false;
@@ -67,7 +67,7 @@ function doesUserHaveRole(user, roleName) {
 }
 
 function getRoleByName(rm, name) {
-	return rm.fetch().then(roles => roles.cache.filter( role => role.name === name ));
+	return rm.fetch().then(roles => roles.cache.find( role => role.name === name ));
 }
 
 function helpCommand(msg) {
@@ -79,7 +79,7 @@ function helpCommand(msg) {
 				name: "Bot Utility", value: "**!help** - prints a list of usable commands."
 			},
 			{
-				name: "Chair Judge Commands", value: "**!prepleft** - Notifies you of the amount of preperation time remaining \n **!deliberate** - allocates you and your panel to your judge room for deliberation."
+				name: "Judge Commands", value: "**!checkin** - Check yourself in \n **!prepleft** - Notifies you of the amount of preperation time remaining \n **!discuss** - [CHAIR ONLY] allocates you and your panel to your judge room for deliberation. \n **!enddiscuss** - [CHAIR ONLY] allocates you and your panel back to the debate room (post deliberation)."
 			},
 			{
 				name: "Tab Commands", value: "**!motion** <Motion> - Set the current round motion afte reading draw \n **!infoslide** <Infoslide> - After reading the draw, set the current round info slide \n **!cancelmotion** - Stops the automatic release of motion after allocations (60s grace period post-allocation) \n **!readreg** - Read the registered team csvs into memory \n **!readdraw** - Read the draw from tab \n **!run-team-draw** - Create debating venues and allocate teams \n **!venue** <Name> - Manually create a debating venue \n **!delvenue** <Name> - Delete a debating venue \n **!allocate** <@Name> <Room> - Manually allocate a person to a voice channel"
@@ -88,7 +88,7 @@ function helpCommand(msg) {
 				name: "Speaker Commands", value: "**!register** <Your Name> <Speaker/Judge> - register yourself as a Speaker"
 			},
 			{
-				name: "Team Commands", value: "**!team** <@Teammate> <Team Name> - register a team with your teammate. \n **!disband** - disbands your current team. \n **!checkin** - check in your team."
+				name: "Team Commands", value: "**!prepleft** - Notifies you of the amount of preparation time remaining \n **!team** <@Teammate> <Team Name> - register a team with your teammate. \n **!disband** - disbands your current team. \n **!checkin** - check in your team."
 			}
 		);
 	
@@ -99,43 +99,93 @@ function registerUser(msg, name, type) {
 	const fullname = name.join(" ");
 	const targetGM = msg.member;
 	const roleName = (type.toLowerCase() == "speaker" ? "Speaker" : "Judge");
-	if (isAuthorised(targetGM, "@everyone", true)) {
-		getRoleByName(msg.guild.roles, roleName).then(speakerRole => {
-			if (roleName === "Judge") {
-				if (competition.regdata.judges.includes(fullname.toLowerCase())) {
-					storeJudge(targetGM, fullname);
-				} else {
-					msg.reply("You are not a registered adjudicator");
-					return false;
-				}
+	if (competition.regdata.judges.length > 0 && competition.regdata.teams.length > 0) {
+		if (typeof(competition.judges.find(j => j.id === targetGM.id)) === typeof(undefined) && (typeof(competition.speakers.find(s => s.id === targetGM.id)) === typeof(undefined))) {
+			if (typeof(competition.judges.find(j => j.name === fullname.toLowerCase())) === typeof(undefined) && (typeof(competition.speakers.find(s => s.name === fullname.toLowerCase())) === typeof(undefined))) {
+				getRoleByName(msg.guild.roles, roleName).then(speakerRole => {
+					let srchArr;
+					if (roleName === "Judge") {
+						srchArr = competition.regdata.judges;
+					} else {
+						srchArr = competition.regdata.speakers;
+					}
+				
+					if (srchArr.includes(fullname.toLowerCase())) {
+						storeRegistration(targetGM, fullname, roleName);
+					} else {
+						msg.reply(`This ${roleName} doesn't exist in the pre-reg database!`);
+						return false;
+					}
+					
+					const safeguardRoleSearch = (roleName == "Speaker" ? competition.regdata.childrenS : competition.regdata.childrenJ);
+					const indexOfEntry = srchArr.indexOf(fullname.toLowerCase());
+					
+					getRoleByName(msg.guild.roles, (safeguardRoleSearch[indexOfEntry] ? "Schools" : "Adult")).then(safeguardRole => {
+						targetGM.roles.add([speakerRole, safeguardRole]).catch(console.error);
+						targetGM.setNickname(fullname).catch(console.error);
+						msg.reply(`Registered ${fullname} as a ${roleName} (${safeguardRole.name}).`);
+					});
+
+				});
+			} else {
+				msg.reply(`${fullname} is already registered on discord!`);
 			}
-			targetGM.setNickname(fullname).catch(console.error);
-			targetGM.roles.add(speakerRole).catch(console.error);
-			msg.reply(`Registered ${fullname} as a ${roleName}.`);
-		});
+		} else {
+			msg.reply("You have already registered!");
+		}
 	} else {
-		msg.reply("You have already registered!");
+		msg.reply("Registration data hasn't been imported yet!");
+	}
+}
+
+function registrationSummary(msg) {
+	msg.reply(`!register: ${competition.judges.length}/${competition.regdata.judges.length} judges, ${competition.teams.length}/${competition.regdata.teams.length} teams, ${competition.speakers.length}/${competition.regdata.speakers.length} speakers on discord registered on discord.`);
+}
+
+function registrationDetailed(msg, type) {
+	const srchArrRegistered = type === "judge" ? competition.judges : competition.teams;
+	const srchArrRaw = type === "judge" ? competition.regdata.judges : competition.regdata.teams;
+
+	let missing = [];
+	srchArrRaw.forEach(entry => {
+		if ( ( typeof(srchArrRegistered.find(r => r.name.toLowerCase() === entry)) === typeof(undefined) ) ) {
+			missing.push(entry);
+		}
+	});
+	
+	if (missing.length !== 0) {
+		let msgO = [];
+		missing.forEach(m => {
+			msgO.push(m);
+		});
+		msg.reply(`!register: Missing ${type}s: \n ${msgO.join(", \n")}`);
+	} else {
+		msg.reply(`!register: No ${type}s missing!`);
 	}
 }
 
 function storeTeam(speakerOne, speakerTwo, teamName) {
-	competition.teams.push({name: teamName.lower(), speakers: [speakerOne.id, speakerTwo.id]});
+	competition.teams.push({name: teamName.toLowerCase(), speakers: [speakerOne.id, speakerTwo.id]});
 	saveToFile();
 }
 
 function findSpeakersForTeamByName(name) {
-	return competition.teams.find(team => team.name == name.lower() ).speakers;
+	return competition.teams.find(team => team.name == name.toLowerCase() ).speakers;
 }
 
-function storeJudge(adj, fname) {
-	competition.judges.push({name: fname, id: adj.id});
+function storeRegistration(adj, fname, role) {
+	if (role === "Judge") {
+		competition.judges.push({name: fname.toLowerCase(), id: adj.id});
+	} else {
+		competition.speakers.push({name: fname.toLowerCase(), id: adj.id});
+	}
 	saveToFile();
 }
 
 function saveToFile() {
 	fs.writeFile('tournament.json', JSON.stringify(competition), err => {
 		if (err) throw err;
-		});
+	});
 }
 
 function unregisterTeam(msg) {
@@ -163,10 +213,10 @@ function registerTeam(msg, name) {
 		msg.reply("Invalid teammate");
 	} else {
 		getRoleByName(msg.guild.roles, "Speaker").then(speakerRole => {
-			if (speakerOne.roles.cache.has(speakerRole.firstKey()) && speakerTwo.roles.cache.has(speakerRole.firstKey())) {
+			if (speakerOne.roles.cache.has(speakerRole.id) && speakerTwo.roles.cache.has(speakerRole.id)) {
 				if (competition.regdata.teams.includes(teamname.toLowerCase())) {
 					getRoleByName(msg.guild.roles, "On Team").then(teamRole => {
-						if (speakerOne.roles.cache.has(teamRole.firstKey()) || speakerTwo.roles.cache.has(teamRole.firstKey())) {
+						if (speakerOne.roles.cache.has(teamRole.id) || speakerTwo.roles.cache.has(teamRole.id)) {
 							msg.reply("You have already registered a team.");
 						} else {
 							storeTeam(speakerOne, speakerTwo, teamname);
@@ -232,9 +282,10 @@ function allocateUserToRoom(guild, userID, channelName) {
 }
 
 function assignTeamToRoom(guild, teamName, roomName, pos) {
-	if (typeof(category) !== typeof(undefined)) {
-		const speakers = competition.teams.find(t => t.name.toLowerCase() === teamName.toLowerCase()).speakers;
-		speakers.forEach(s => {
+	console.log(teamName);
+	const team = competition.teams.find(t => t.name.toLowerCase() === teamName.toLowerCase());
+	if (typeof(team) !== typeof(undefined)) {
+		team.speakers.forEach(s => {
 			if (pos !== "debate") {
 				allocateUserToRoom(guild, s, `${pos} - Prep Room [${roomName}]`);
 			} else {
@@ -242,8 +293,7 @@ function assignTeamToRoom(guild, teamName, roomName, pos) {
 			}
 		});
 	} else {
-		// Room not found rip
-		console.log(`Failed to assign ${teamName} in ${pos} to ${roomName}.`);
+		console.log(`${teamName} is undefined.`);
 	}
 }
 
@@ -314,14 +364,16 @@ function allocateAllSpeakersAndJudges(guild) {
 			});
 		}
 		
+		
 		toAllocate.forEach(allocation => {
 			if (typeof(allocation) !== typeof(undefined)) {
 				allocateUserToRoom(guild, allocation.id, `${debate.venue} - Debate Room`);
 			}
 		});
 		
+		console.log(debate.teams);
 		debate.teams.forEach(t => {
-			assignTeamToRoom(guild, t.name, `${debate.venue} - Debate Room`, "debate")
+			assignTeamToRoom(guild, t, `${debate.venue}`, "debate");
 		});
 		
 	});
@@ -330,10 +382,6 @@ function allocateAllSpeakersAndJudges(guild) {
 
 function runTeamDraw(guild, msg) {
 	competition.rounds[competition.rounds.length - 1].forEach(debate => {
-		if (!(competition.venues.includes(debate.venue))) {
-			createDebatingRoom(guild, debate.venue);
-			competition.venues.push(debate.venue);
-		}
 		const positions = ["OG", "OO", "CG", "CO"];
 		for (let i = 0; i < positions.length; i++ ) {
 			assignTeamToRoom(guild, debate.teams[i], debate.venue, positions[i]);
@@ -342,27 +390,29 @@ function runTeamDraw(guild, msg) {
 	});
 	comp_status = "prep";
 	prep_start = new Date();
-	setTimeout(releaseInfoslideAndMotionProcessor, 60000, "motionRelease");
-	setTimeout(() => { timeElapsed(5, msg) }, 300000, "5minElapsed");
-	setTimeout(() => { timeElapsed(10, msg) }, 600000, "10minElapsed");
-	setTimeout(() => { timeElapsed(13, msg) }, 780000, "13minElapsed");
-	setTimeout(() => { timeElapsed(13, msg) }, 840000, "14minElapsed");
-	setTimeout(() => { allocateAllSpeakersAndJudges(guild) }, 900000, "prepTimeFinishes");
+	setTimeout(() => { releaseInfoslideAndMotionProcessor(msg) }, 6000, "motionRelease");
+
 }
 
-function releaseInfoslideAndMotionProcessor() {
+function releaseInfoslideAndMotionProcessor(msg) {
 	const announceChannel = msg.guild.channels.cache.find(channel => channel.name === "announcements");
 	if (infoslide !== "") {
 		announceChannel.send(`@everyone, This round has an infoslide: ${infoslide}. The motion will be announced in 60 seconds.`);
-		setTimeout(sendMotion, 60000, "motionRelease");
+		setTimeout(() => { sendMotion(msg) }, 6000, "motionRelease");
 	} else {
-		sendMotion();
+		sendMotion(msg);
 	}
 }
 
-function sendMotion() {
+function sendMotion(msg) {
 	const announceChannel = msg.guild.channels.cache.find(channel => channel.name === "announcements");
 	announceChannel.send(`@everyone, The motion for this round reads: ${motion}`);
+	
+	//setTimeout(() => { timeElapsed(5, msg) }, 30000, "5minElapsed");
+	//setTimeout(() => { timeElapsed(10, msg) }, 60000, "10minElapsed");
+	//setTimeout(() => { timeElapsed(13, msg) }, 78000, "13minElapsed");
+	//setTimeout(() => { timeElapsed(14, msg) }, 84000, "14minElapsed");
+	setTimeout(() => { allocateAllSpeakersAndJudges(msg.guild) }, 1000, "prepTimeFinishes");
 }
 
 function stopMotionRelease() {
@@ -407,33 +457,37 @@ function revertTeamDraw(guild, msg) {
 
 function checkin(msg) {
 	const sourceID = msg.member.id;
-	if (doesUserHaveRole(msg.member, "Judge")) {
-		// Judge
-		for (let i = 0; i < competition.judges.length; i++ ) {
-			if (competition.judges[i].id === sourceID) {
-				// MATCH YAY
-				if (competition.judges[i].checkedin === true) {
-					msg.reply(`${competition.judges[i].name} is already checked in!`);
-				} else {
-					competition.judges[i].checkedin = true;
-					msg.reply(`${competition.judges[i].name} has been checked in.`);
+	doesUserHaveRole(msg.member, "Judge").then(auth => {
+		if (auth) {
+			// Judge
+			for (let i = 0; i < competition.judges.length; i++ ) {
+				if (competition.judges[i].id === sourceID) {
+					// MATCH YAY
+					if (competition.judges[i].checkedin === true) {
+						msg.reply(`${competition.judges[i].name} is already checked in!`);
+					} else {
+						competition.judges[i].checkedin = true;
+						msg.reply(`${competition.judges[i].name} has been checked in.`);
+					}
+					return;
+				}
+			}
+		} else {
+			// Team - ugh
+			for (let i = 0; i < competition.teams.length; i++ ) {
+				if (competition.teams[i].speakers.includes(sourceID)) {
+					// MATCH YAY
+					if (competition.teams[i].checkedin === true) {
+						msg.reply(`${competition.teams[i].name} is already checked in!`);
+					} else {
+						competition.teams[i].checkedin = true;
+						msg.reply(`${competition.teams[i].name} has been checked in.`);
+					}
+					return;
 				}
 			}
 		}
-	} else {
-		// Team - ugh
-		for (let i = 0; i < competition.teams.length; i++ ) {
-			if (competition.teams[i].speakers.includes(sourceID)) {
-				// MATCH YAY
-				if (competition.teams[i].checkedin === true) {
-					msg.reply(`${competition.teams[i].name} is already checked in!`);
-				} else {
-					competition.teams[i].checkedin = true;
-					msg.reply(`${competition.teams[i].name} has been checked in.`);
-				}
-			}
-		}
-	}
+	});
 }
 
 function openCheckin(msg) {
@@ -468,14 +522,13 @@ function checkinDetailed(msg, type) {
 	}
 }
 
-function chairMoveJudges(msg, chairID) {
+function chairMoveJudges(msg, chairID, start) {
 	const chair = competition.judges.find(j => j.id === chairID);
 	const room = competition.rounds[competition.rounds.length - 1].find(v => v.chair.toLowerCase() === chair.name.toLowerCase() );
 	let toAllocate = [];
 	
 	if (typeof(room) !== typeof(undefined)) {
 		toAllocate.push(chair);
-		
 		room.panel.forEach(judge => {
 			toAllocate.push(competition.judges.find(a => a.name.toLowerCase() === judge.toLowerCase()))
 		});
@@ -486,7 +539,8 @@ function chairMoveJudges(msg, chairID) {
 	
 	toAllocate.forEach(allocation => {
 		if (typeof(allocation) !== typeof(undefined)) {
-			allocateUserToRoom(msg.guild, allocation.id, `${room.venue} - Judges Room`);
+			let debateOrJudges = start ? `Judges` : `Debate`;
+			allocateUserToRoom(msg.guild, allocation.id, `${room.venue} - ${debateOrJudges} Room`);
 		}
 	});
 	
@@ -533,10 +587,19 @@ client.on('message', msg => {
 					}
 				});
 				break;
-			case "!deliberate":
+			case "!discuss":
 				isAuthorised(msg.member, "Judge", true).then(auth => {
 					if (auth) {
-						chairMoveJudges(msg, msg.member.id);
+						chairMoveJudges(msg, msg.member.id, true);
+					} else {
+						msg.reply("You must be a chair judge to use this command.");
+					}
+				});
+				break;
+			case "!enddiscuss":
+				isAuthorised(msg.member, "Judge", true).then(auth => {
+					if (auth) {
+						chairMoveJudges(msg, msg.member.id, false);
 					} else {
 						msg.reply("You must be a chair judge to use this command.");
 					}
@@ -663,6 +726,29 @@ client.on('message', msg => {
 					}
 				});
 				break;
+			case "!regsum":
+				isAuthorised(msg.member, "Convenor", true).then(auth => {
+					if (auth) {
+						registrationSummary(msg);
+					} else {
+						msg.reply(`Only convenors can use this command.`);
+					}
+				});
+				break;
+			case "!regdet":
+				isAuthorised(msg.member, "Convenor", true).then(auth => {
+					if (auth) {
+						const validOptions = ["judge", "team"];
+						if (validOptions.includes(command[1].toLowerCase())) {
+							registrationDetailed(msg, command[1].toLowerCase());
+						} else {
+							msg.reply("You must include a type to return (Judge/Speaker)!");
+						}
+					} else {
+						msg.reply(`Only convenors can use this command.`);
+					}
+				});
+				break;
 			case "!motion":
 				isAuthorised(msg.member, "Convenor", true).then(auth => {
 					if (auth) {
@@ -702,7 +788,7 @@ client.on('message', msg => {
 				isAuthorised(msg.member, "Convenor", true).then(auth => {
 					if (auth) {
 						const validOptions = ["yes im serious"];
-						if (validOptions.includes(command[1].toLowerCase())) {
+						if (validOptions.includes(command.slice(1).join(" ").toLowerCase())) {
 							resetComp();
 						} else {
 							msg.reply("You must include the confirmation statement (if you don't know what that is, don't use this)!");
