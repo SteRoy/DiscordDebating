@@ -216,14 +216,14 @@ function registerTeam(msg, name) {
 			if (speakerOne.roles.cache.has(speakerRole.id) && speakerTwo.roles.cache.has(speakerRole.id)) {
 				if (competition.regdata.teams.includes(teamname.toLowerCase())) {
 					getRoleByName(msg.guild.roles, "On Team").then(teamRole => {
-						if (speakerOne.roles.cache.has(teamRole.id) || speakerTwo.roles.cache.has(teamRole.id)) {
+						if (speakerOne.roles.cache.has(teamRole.id) || speakerTwo.roles.cache.has(teamRole.id) || typeof(undefined) === typeof(competition.teams.find(t => t.name === name.toLowerCase())) )) {
 							msg.reply("You have already registered a team.");
 						} else {
 							storeTeam(speakerOne, speakerTwo, teamname);
 							speakerOne.roles.add(teamRole).catch(console.error);
 							speakerTwo.roles.add(teamRole).catch(console.error);
-							speakerOne.setNickname(`[${teamname}] ${speakerOne.nickname.split("] ").pop()}`.substring(0,32));
-							speakerTwo.setNickname(`[${teamname}] ${speakerTwo.nickname.split("] ").pop()}`.substring(0,32));
+							speakerOne.setNickname(`[${teamname}] ${speakerOne.nickname}`.substring(0,32));
+							speakerTwo.setNickname(`[${teamname}] ${speakerTwo.nickname}`.substring(0,32));
 						}
 					});
 				} else {
@@ -833,6 +833,16 @@ client.on('message', msg => {
 						comp_status = "prep";
 						prep_start = new Date();
 						setTimeout(() => { releaseInfoslideAndMotionProcessor(msg) }, 6000, "motionRelease");
+					} else {
+						msg.reply(`Only convenors can use this command.`);
+					}
+				});
+				break;
+			case "!endprep":
+				isAuthorised(msg.member, "Convenor", true).then(auth => {
+					if (auth) {
+						clearTimeout("prepTimeFinishes");
+						allocateAllSpeakersAndJudges(msg.guild);
 					} else {
 						msg.reply(`Only convenors can use this command.`);
 					}
