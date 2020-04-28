@@ -546,6 +546,29 @@ function chairMoveJudges(msg, chairID, start) {
 	
 }
 
+function prepareForAnnouncements(guild) {
+	competition.judges.forEach(judge => {
+		const judgeID = judge.id;
+		guild.members.fetch(judgeID).then(judgeGM => {
+			doesUserHaveRole(judgeGM, "CA").then(ca => {
+				doesUserHaveRole(judgeGM, "Equity").then(equity => {
+					doesUserHaveRole(judgeGM, "Convenor").then(con => {
+						if (!(ca || equity || con)) {
+							allocateUserToRoom(guild, judgeID, "Voice Announcements")
+						}
+					});
+				});
+			});
+		});
+	});
+	
+	competition.teams.forEach(team => {
+		team.speakers.forEach(speakerID => {
+			allocateUserToRoom(guild, speakerID, "Voice Announcements");
+		});
+	});
+}
+
 client.on('ready', () => {
   console.log(`Logged in as ${client.user.tag}!`);
 });
@@ -653,6 +676,15 @@ client.on('message', msg => {
 					if (auth) {
 						const venuename = command.splice(1).join(" ");
 						deleteCategory(msg.guild, venuename, msg);
+					} else {
+						msg.reply(`Only convenors can use this command.`);
+					}
+				});
+				break;
+			case "!announce":
+				isAuthorised(msg.member, "Convenor", true).then(auth => {
+					if (auth) {
+						prepareForAnnouncements(msg.guild);
 					} else {
 						msg.reply(`Only convenors can use this command.`);
 					}
