@@ -395,10 +395,6 @@ function runTeamDraw(guild, msg) {
 			console.log(`Trying to assign ${debate.teams[i]} to ${positions[i]} in ${debate.venue}`);
 		}
 	});
-	comp_status = "prep";
-	prep_start = new Date();
-	setTimeout(() => { releaseInfoslideAndMotionProcessor(msg) }, 6000, "motionRelease");
-
 }
 
 function releaseInfoslideAndMotionProcessor(msg) {
@@ -826,6 +822,17 @@ client.on('message', msg => {
 						} else {
 							msg.reply("You must specify an infoslide!");
 						}
+					} else {
+						msg.reply(`Only convenors can use this command.`);
+					}
+				});
+				break;
+			case "!releasemotion":
+				isAuthorised(msg.member, "Convenor", true).then(auth => {
+					if (auth) {
+						comp_status = "prep";
+						prep_start = new Date();
+						setTimeout(() => { releaseInfoslideAndMotionProcessor(msg) }, 6000, "motionRelease");
 					} else {
 						msg.reply(`Only convenors can use this command.`);
 					}
