@@ -79,7 +79,7 @@ function helpCommand(msg) {
 				name: "Bot Utility", value: "**!help** - prints a list of usable commands."
 			},
 			{
-				name: "Chair Judge Commands", value: "**!prepleft** - Notifies you of the amount of preperation time remaining"
+				name: "Chair Judge Commands", value: "**!prepleft** - Notifies you of the amount of preperation time remaining \n **!deliberate** - allocates you and your panel to your judge room for deliberation."
 			},
 			{
 				name: "Tab Commands", value: "**!motion** <Motion> - Set the current round motion afte reading draw \n **!infoslide** <Infoslide> - After reading the draw, set the current round info slide \n **!cancelmotion** - Stops the automatic release of motion after allocations (60s grace period post-allocation) \n **!readreg** - Read the registered team csvs into memory \n **!readdraw** - Read the draw from tab \n **!run-team-draw** - Create debating venues and allocate teams \n **!venue** <Name> - Manually create a debating venue \n **!delvenue** <Name> - Delete a debating venue \n **!allocate** <@Name> <Room> - Manually allocate a person to a voice channel"
@@ -468,6 +468,30 @@ function checkinDetailed(msg, type) {
 	}
 }
 
+function chairMoveJudges(msg, chairID) {
+	const chair = competition.judges.find(j => j.id === chairID);
+	const room = competition.rounds[competition.rounds.length - 1].find(v => v.chair.toLowerCase() === chair.name.toLowerCase() );
+	let toAllocate = [];
+	
+	if (typeof(room) !== typeof(undefined)) {
+		toAllocate.push(chair);
+		
+		room.panel.forEach(judge => {
+			toAllocate.push(competition.judges.find(a => a.name.toLowerCase() === judge.toLowerCase()))
+		});
+		
+	} else {
+		msg.reply("You must be a chair to use this command.");
+	}
+	
+	toAllocate.forEach(allocation => {
+		if (typeof(allocation) !== typeof(undefined)) {
+			allocateUserToRoom(msg.guild, allocation.id, `${room.venue} - Judges Room`);
+		}
+	});
+	
+}
+
 client.on('ready', () => {
   console.log(`Logged in as ${client.user.tag}!`);
 });
@@ -506,6 +530,15 @@ client.on('message', msg => {
 						unregisterTeam(msg);
 					} else {
 						msg.reply("You must be on a team to disband it.");
+					}
+				});
+				break;
+			case "!deliberate":
+				isAuthorised(msg.member, "Judge", true).then(auth => {
+					if (auth) {
+						chairMoveJudges(msg, msg.member.id);
+					} else {
+						msg.reply("You must be a chair judge to use this command.");
 					}
 				});
 				break;
