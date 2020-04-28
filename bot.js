@@ -206,9 +206,8 @@ function deleteCategory(guild, roomName, msg) {
 
 function allocateUserToRoom(guild, userID, channelName) {
 	const newChannel = getChannelByName(guild, channelName);
-	console.log(newChannel);
 	if (typeof(newChannel) === typeof(undefined)) {
-		console.log(`Invalid assignment channel specified for ${userID$} - ${channelName}`);
+		console.log(`Invalid assignment channel specified for ${userID} - ${channelName}`);
 	} else {
 		guild.members.fetch(userID).then(user => {
 			if (user.voice.channel !== null){
@@ -221,10 +220,8 @@ function allocateUserToRoom(guild, userID, channelName) {
 }
 
 function assignTeamToRoom(guild, teamName, roomName, pos) {
-	// position validated
-	guild.channels.find(channel => channel.name === roomName);
 	if (typeof(category) !== typeof(undefined)) {
-		const speakers competition.teams.find(t => t.name.toLowerCase() === teamName.toLowerCase()).speakers;
+		const speakers = competition.teams.find(t => t.name.toLowerCase() === teamName.toLowerCase()).speakers;
 		speakers.forEach(s => {
 			if (pos !== "debate") {
 				allocateUserToRoom(guild, s, `${pos} - Prep Room [${roomName}]`);
@@ -284,7 +281,6 @@ function processRegData(msg) {
 		fs.readFile('regdata.json', (err, data) => {
 			const x = JSON.parse(data);
 			competition.regdata = x;
-			console.log(x);
 			msg.reply(`Loaded ${competition.regdata.teams.length} registered teams, ${competition.regdata.judges.length} registered judges!`);
 			//saveToFile();
 		});
@@ -293,19 +289,26 @@ function processRegData(msg) {
 
 function allocateAllSpeakersAndJudges(guild) {
 	competition.rounds[competition.rounds.length - 1].forEach(debate => {
-		// Let's allocate chair first
-		const chair = competition.judges.find(j => { j.name.toLowerCase() === debate.chair.toLowerCase() });
-		allocateUserToRoom(guild, chair, `${debate.name} - Debate Room`);
+		let toAllocate = [];
+		const chair = competition.judges.find(j => j.name.toLowerCase() === debate.chair.toLowerCase());
+		toAllocate.push(chair);
+		
 		if (debate.panel.length > 0) {
 			// allocate panel if we must
 			debate.panel.forEach(j => {
-				const judgeIdentifier = competition.judges.find(judge => { judge.name.toLowerCase() === j.name.toLowerCase() });
-				allocateUserToRoom(guild, judgeIdentifier, `${debate.name} - Debate Room`)
+				const judge = competition.judges.find(judge => judge.name.toLowerCase() === j.toLowerCase());
+				toAllocate.push(judge);
 			});
 		}
 		
+		toAllocate.forEach(allocation => {
+			if (typeof(allocation) !== typeof(undefined)) {
+				allocateUserToRoom(guild, allocation.id, `${debate.venue} - Debate Room`);
+			}
+		});
+		
 		debate.teams.forEach(t => {
-			assignTeamToRoom(guild, t.name, "debate")
+			assignTeamToRoom(guild, t.name, `${debate.venue} - Debate Room`, "debate")
 		});
 		
 	});
@@ -326,10 +329,10 @@ function runTeamDraw(guild, msg) {
 	});
 	comp_status = "prep";
 	prep_start = new Date();
-	setTimeout(() => { timeElapsed(5) }, 300000, "5minElapsed");
-	setTimeout(() => { timeElapsed(10) }, 600000, "10minElapsed");
-	setTimeout(() => { timeElapsed(13) }, 780000, "13minElapsed");
-	setTimeout(() => { timeElapsed(13) }, 840000, "14minElapsed");
+	setTimeout(() => { timeElapsed(5, msg) }, 300000, "5minElapsed");
+	setTimeout(() => { timeElapsed(10, msg) }, 600000, "10minElapsed");
+	setTimeout(() => { timeElapsed(13, msg) }, 780000, "13minElapsed");
+	setTimeout(() => { timeElapsed(13, msg) }, 840000, "14minElapsed");
 	setTimeout(() => { allocateAllSpeakersAndJudges(guild) }, 900000, "prepTimeFinishes");
 }
 
@@ -573,7 +576,7 @@ client.on('message', msg => {
 			case "!checkindet":
 				isAuthorised(msg.member, "Convenor", true).then(auth => {
 					if (auth) {
-						const validOptions = ["judge", "speaker"];
+						const validOptions = ["judge", "team"];
 						if (validOptions.includes(command[1].toLowerCase())) {
 							checkinDetailed(msg, command[1].toLowerCase());
 						} else {
