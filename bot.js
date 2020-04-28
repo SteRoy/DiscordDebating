@@ -165,7 +165,7 @@ function registrationDetailed(msg, type) {
 }
 
 function storeTeam(speakerOne, speakerTwo, teamName) {
-	competition.teams.push({name: teamName.toLowerCase(), speakers: [speakerOne.id, speakerTwo.id]});
+	competition.teams.push({name: teamName.toLowerCase(), speakers: [speakerOne.id, speakerTwo.id], checkedin: false});
 	saveToFile();
 }
 
@@ -175,7 +175,7 @@ function findSpeakersForTeamByName(name) {
 
 function storeRegistration(adj, fname, role) {
 	if (role === "Judge") {
-		competition.judges.push({name: fname.toLowerCase(), id: adj.id});
+		competition.judges.push({name: fname.toLowerCase(), id: adj.id, checkedin: false});
 	} else {
 		competition.speakers.push({name: fname.toLowerCase(), id: adj.id});
 	}
@@ -220,10 +220,10 @@ function registerTeam(msg, name) {
 							msg.reply("You have already registered a team.");
 						} else {
 							storeTeam(speakerOne, speakerTwo, teamname);
-							speakerOne.setNickname(`[${teamname}] ${speakerOne.nickname.split("] ").pop()}`.substring(0,32));
-							speakerTwo.setNickname(`[${teamname}] ${speakerTwo.nickname.split("] ").pop()}`.substring(0,32));
 							speakerOne.roles.add(teamRole).catch(console.error);
 							speakerTwo.roles.add(teamRole).catch(console.error);
+							speakerOne.setNickname(`[${teamname}] ${speakerOne.nickname.split("] ").pop()}`.substring(0,32));
+							speakerTwo.setNickname(`[${teamname}] ${speakerTwo.nickname.split("] ").pop()}`.substring(0,32));
 						}
 					});
 				} else {
@@ -415,11 +415,11 @@ function sendMotion(msg) {
 	const announceChannel = msg.guild.channels.cache.find(channel => channel.name === "announcements");
 	announceChannel.send(`@everyone, The motion for this round reads: ${motion}`);
 	
-	//setTimeout(() => { timeElapsed(5, msg) }, 30000, "5minElapsed");
-	//setTimeout(() => { timeElapsed(10, msg) }, 60000, "10minElapsed");
-	//setTimeout(() => { timeElapsed(13, msg) }, 78000, "13minElapsed");
-	//setTimeout(() => { timeElapsed(14, msg) }, 84000, "14minElapsed");
-	setTimeout(() => { allocateAllSpeakersAndJudges(msg.guild) }, 1000, "prepTimeFinishes");
+	setTimeout(() => { timeElapsed(5, msg) }, 300000, "5minElapsed");
+	setTimeout(() => { timeElapsed(10, msg) }, 600000, "10minElapsed");
+	setTimeout(() => { timeElapsed(13, msg) }, 780000, "13minElapsed");
+	setTimeout(() => { timeElapsed(14, msg) }, 840000, "14minElapsed");
+	setTimeout(() => { allocateAllSpeakersAndJudges(msg.guild) }, 900000, "prepTimeFinishes");
 }
 
 function stopMotionRelease() {
@@ -605,7 +605,7 @@ client.on('message', msg => {
 				} else if (msg.mentions.members === undefined) {
 					msg.reply("You must mention your teammate by placing the @ symbol before their name");
 				} else {
-					registerTeam(msg, command.slice(2));
+					registerTeam(msg, command.slice(2).replace("  ", " "));
 				}
 				break;
 			case "!disband":
@@ -776,24 +776,32 @@ client.on('message', msg => {
 				break;
 			case "!regsum":
 				isAuthorised(msg.member, "Convenor", true).then(auth => {
-					if (auth) {
-						registrationSummary(msg);
+					if (competition.regdata.teams.length > 0 && competition.regdata.judges.length > 0) {
+						if (auth) {
+							registrationSummary(msg);
+						} else {
+							msg.reply(`Only convenors can use this command.`);
+						}
 					} else {
-						msg.reply(`Only convenors can use this command.`);
+						msg.reply("No regdata imported, use !readreg");
 					}
 				});
 				break;
 			case "!regdet":
 				isAuthorised(msg.member, "Convenor", true).then(auth => {
-					if (auth) {
-						const validOptions = ["judge", "team"];
-						if (validOptions.includes(command[1].toLowerCase())) {
-							registrationDetailed(msg, command[1].toLowerCase());
+					if (competition.regdata.teams.length > 0 && competition.regdata.judges.length > 0) {
+						if (auth) {
+							const validOptions = ["judge", "team"];
+							if (validOptions.includes(command[1].toLowerCase())) {
+								registrationDetailed(msg, command[1].toLowerCase());
+							} else {
+								msg.reply("You must include a type to return (Judge/Team)!");
+							}
 						} else {
-							msg.reply("You must include a type to return (Judge/Speaker)!");
+							msg.reply(`Only convenors can use this command.`);
 						}
 					} else {
-						msg.reply(`Only convenors can use this command.`);
+						msg.reply("No regdata imported, use !readreg");
 					}
 				});
 				break;
