@@ -3,10 +3,15 @@ const fs = require('fs');
 const spawn = require("child_process").spawn;
 const client = new Discord.Client();
 
+// TODO: remember to put the saveToFiles() back into the readreg and readdraw commands
+
 let token;
 let tournament_url;
 let sessionid;
 let csrftoken;
+
+let comp_status;
+let prep_start;
 
 
 var competition;
@@ -61,10 +66,10 @@ function helpCommand(msg) {
 				name: "Bot Utility", value: "**!help** - prints a list of usable commands."
 			},
 			{
-				name: "Chair Judge Commands", value: "None"
+				name: "Chair Judge Commands", value: "**!prepleft** - Notifies you of the amount of preperation time remaining"
 			},
 			{
-				name: "Tab Commands", value: "**!readdraw** - Read the draw from tab \n **!run-team-draw** - Create debating venues and allocate teams \n **!venue** <Name> - Manually create a debating venue \n **!delvenue** <Name> - Delete a debating venue \n **!allocate** <@Name> <Room> - Manually allocate a person to a voice channel"
+				name: "Tab Commands", value: "**!readreg** - Read the registered team csvs into memory \n **!readdraw** - Read the draw from tab \n **!run-team-draw** - Create debating venues and allocate teams \n **!venue** <Name> - Manually create a debating venue \n **!delvenue** <Name> - Delete a debating venue \n **!allocate** <@Name> <Room> - Manually allocate a person to a voice channel"
 			},
 			{
 				name: "Speaker Commands", value: "**!register** <Your Name> <Speaker/Judge> - register yourself as a Speaker"
@@ -86,7 +91,9 @@ function registerUser(msg, name, type) {
 			targetGM.setNickname(fullname).catch(console.error);
 			targetGM.roles.add(speakerRole).catch(console.error);
 			msg.reply(`Registered ${fullname} as a ${roleName}.`);
-			storeJudge(targetGM, fullname);
+			if (roleName == "Judge") {
+				storeJudge(targetGM, fullname);
+			}
 		});
 	} else {
 		msg.reply("You have already registered!");
@@ -94,8 +101,12 @@ function registerUser(msg, name, type) {
 }
 
 function storeTeam(speakerOne, speakerTwo, teamName) {
-	competition.teams.push({name: teamName, speakers: [speakerOne.id, speakerTwo.id]});
+	competition.teams.push({name: teamName.lower(), speakers: [speakerOne.id, speakerTwo.id]});
 	saveToFile();
+}
+
+function findSpeakersForTeamByName(name) {
+	return competition.teams.find(team => team.name == name.lower() ).speakers;
 }
 
 function storeJudge(adj, fname) {
@@ -135,17 +146,21 @@ function registerTeam(msg, name) {
 	} else {
 		getRoleByName(msg.guild.roles, "Speaker").then(speakerRole => {
 			if (speakerOne.roles.cache.has(speakerRole.firstKey()) && speakerTwo.roles.cache.has(speakerRole.firstKey())) {
-				getRoleByName(msg.guild.roles, "On Team").then(teamRole => {
-					if (speakerOne.roles.cache.has(teamRole.firstKey()) || speakerTwo.roles.cache.has(teamRole.firstKey())) {
-						msg.reply("You have already registered a team.");
-					} else {
-						storeTeam(speakerOne, speakerTwo, teamname);
-						speakerOne.setNickname(`[${teamname}] ${speakerOne.nickname.split("] ").pop()}`.substring(0,32));
-						speakerTwo.setNickname(`[${teamname}] ${speakerTwo.nickname.split("] ").pop()}`.substring(0,32));
-						speakerOne.roles.add(teamRole).catch(console.error);
-						speakerTwo.roles.add(teamRole).catch(console.error);
-					}
-				});
+				if (competition.regdata.teams.includes(teamname.toLowerCase())) {
+					getRoleByName(msg.guild.roles, "On Team").then(teamRole => {
+						if (speakerOne.roles.cache.has(teamRole.firstKey()) || speakerTwo.roles.cache.has(teamRole.firstKey())) {
+							msg.reply("You have already registered a team.");
+						} else {
+							storeTeam(speakerOne, speakerTwo, teamname);
+							speakerOne.setNickname(`[${teamname}] ${speakerOne.nickname.split("] ").pop()}`.substring(0,32));
+							speakerTwo.setNickname(`[${teamname}] ${speakerTwo.nickname.split("] ").pop()}`.substring(0,32));
+							speakerOne.roles.add(teamRole).catch(console.error);
+							speakerTwo.roles.add(teamRole).catch(console.error);
+						}
+					});
+				} else {
+					msg.reply("Not a registered team name!");
+				}
 			} else {
 				msg.reply("Both speakers must register as a speaker using !register.");
 			}
@@ -224,38 +239,149 @@ function getAndReadDraw(msg) {
 		fs.readFile(`round-${current_round}.json`, (err, data) => {
 			const x = JSON.parse(data);
 			competition.rounds.push(x);
-			console.log(x);
 			let teamcount = 0;
 			let adjcount = 0;
 			let chaircount = 0;
 			x.forEach(venue => {
 				venue.teams.forEach(t => {
+					if (!(competition.regdata.teams.includes(t.toLowerCase()))) {
+						msg.reply(`${t} does not exist in registration data!`);
+					}
 					teamcount++;
 				});
 				venue.panel.forEach(a => {
-					adjcount++;
+					a.split(",").forEach(as => {	
+						if (!(competition.regdata.judges.includes(as.toLowerCase()))) {
+							msg.reply(`${as} does not exist in registration data!`);
+						}
+						adjcount++;
+					});
 				});
 				if (venue.chair !== "") {
+					if (!(competition.regdata.judges.includes(venue.chair.toLowerCase()))) {
+						msg.reply(`${venue.chair} does not exist in registration data!`);
+					}
 					chaircount++;
 				}
 			});
 			msg.reply(`Loaded ${x.length} venues comprised of ${teamcount} teams, ${chaircount} chairs and ${adjcount} panellists.`);
-			// saveToFile();
+			//saveToFile();
 		});
 	});
 }
 
+function processRegData(msg) {
+	const python = spawn('python', ['csv-processor.py']);
+	python.stdout.on('close', (err) => {
+		fs.readFile('regdata.json', (err, data) => {
+			const x = JSON.parse(data);
+			competition.regdata = x;
+			console.log(x);
+			msg.reply(`Loaded ${competition.regdata.teams.length} registered teams, ${competition.regdata.judges.length} registered judges!`);
+			//saveToFile();
+		});
+	});
+}
+
+function allocateAllSpeakersAndJudges(guild) {
+	console.log("Prep time over");
+}
+
 function runTeamDraw(guild, msg) {
 	competition.rounds[competition.rounds.length - 1].forEach(debate => {
-		createDebatingRoom(guild, debate.venue);
+		if (!(competition.venues.includes(debate.venue))) {
+			createDebatingRoom(guild, debate.venue);
+			competition.venues.push(debate.venue);
+		}
 		msg.reply(`Assigning OG: ${debate.teams[0]}, OO: ${debate.teams[1]}, CG: ${debate.teams[2]}, CO: ${debate.teams[3]} to ${debate.venue}`);
 	});
+	comp_status = "prep";
+	prep_start = new Date();
+	setTimeout(() => { allocateAllSpeakersAndJudges(guild) }, 900000, "prepTimeFinishes");
+}
+
+function prepTimeLeft(msg) {
+	if (comp_status !== "prep") {
+		msg.reply("You must be in prep time.");
+	} else {
+		const now = new Date();
+		const difference = 900000 - (now - prep_start);
+		if (difference <= 900000) {
+			msg.reply(`Prep time has around ${Math.floor(difference/(1000*60))} minutes left. (${difference}ms)`);
+		} else {
+			msg.reply("Prep time is over!");
+		}
+	}
 }
 
 function revertTeamDraw(guild, msg) {
 	competition.rounds[competition.rounds.length - 1].forEach(debate => {
 		deleteCategory(guild, debate.venue, msg);
 	});
+	competition.venues = [];
+}
+
+function checkin(msg) {
+	const sourceID = msg.member.id;
+	if (doesUserHaveRole(msg.member, "Judge")) {
+		// Judge
+		for (let i = 0; i < competition.judges.length; i++ ) {
+			if (competition.judges[i].id === sourceID) {
+				// MATCH YAY
+				if (competition.judges[i].checkedin === true) {
+					msg.reply(`${competition.judges[i].name} is already checked in!`);
+				} else {
+					competition.judges[i].checkedin = true;
+					msg.reply(`${competition.judges[i].name} has been checked in.`);
+				}
+			}
+		}
+	} else {
+		// Team - ugh
+		for (let i = 0; i < competition.teams.length; i++ ) {
+			if (competition.teams[i].speakers.includes(sourceID)) {
+				// MATCH YAY
+				if (competition.teams[i].checkedin === true) {
+					msg.reply(`${competition.teams[i].name} is already checked in!`);
+				} else {
+					competition.teams[i].checkedin = true;
+					msg.reply(`${competition.teams[i].name} has been checked in.`);
+				}
+			}
+		}
+	}
+}
+
+function openCheckin(msg) {
+	for (let i = 0; i < competition.judges.length; i++ ) {
+		competition.judges[i].checkedin = false;
+	}
+	for (let i = 0; i < competition.teams.length; i++ ) {
+		competition.teams[i].checkedin = false;
+	}
+	
+	comp_status = "check-in";
+	msg.reply("CheckIn opened ");
+}
+
+function checkinSummary(msg) {
+	const x = competition.judges.filter(j => j.checkedin !== false).length;
+	const y = competition.teams.filter(t => t.checkedin !== false).length;
+	msg.reply(`CheckIn: ${x}/${competition.judges.length} judges on discord, ${y}/${competition.teams.length} teams on discord checked in.`);
+}
+
+function checkinDetailed(msg, type) {
+	const srchArr = type === "judge" ? competition.judges : competition.teams;
+	const missing = srchArr.filter(t => t.checkedin !== true);
+	if (missing.length !== 0) {
+		let msgO = [];
+		missing.forEach(m => {
+			msgO.push(m.name);
+		});
+		msg.reply(`CheckIn: Missing ${type}s: ${msgO.join(", ")}!`);
+	} else {
+		msg.reply(`CheckIn: No ${type}s missing!`);
+	}
 }
 
 client.on('ready', () => {
@@ -268,6 +394,9 @@ client.on('message', msg => {
 		switch(command[0]) {
 			case "!help":
 				helpCommand(msg);
+				break;
+			case "!prepleft":
+				prepTimeLeft(msg);
 				break;
 			case "!register":
 				if (command.length == 1) {
@@ -295,6 +424,25 @@ client.on('message', msg => {
 						msg.reply("You must be on a team to disband it.");
 					}
 				});
+				break;
+			case "!checkin":
+				if (comp_status === "check-in") {
+					isAuthorised(msg.member, "On Team", true).then(auth => {
+						if (auth) {
+							checkin(msg);
+						} else {
+							isAuthorised(msg.member, "Judge", true).then(auth => {
+								if (auth) {
+									checkin(msg);
+								} else {
+									msg.reply("You must be on a team or be a judge to check in.");
+								}
+							});
+						}
+					});
+				} else {
+					msg.reply("CheckIn is not currently open.");
+				}
 				break;
 			case "!allocate":
 				if (command.length <= 2) {
@@ -352,6 +500,47 @@ client.on('message', msg => {
 				isAuthorised(msg.member, "Convenor", true).then(auth => {
 					if (auth) {
 						revertTeamDraw(msg.guild, msg);
+					} else {
+						msg.reply(`Only convenors can use this command.`);
+					}
+				});
+				break;
+			case "!readreg":
+				isAuthorised(msg.member, "Convenor", true).then(auth => {
+					if (auth) {
+						processRegData(msg);
+					} else {
+						msg.reply(`Only convenors can use this command.`);
+					}
+				});
+				break;
+			case "!opencheckin":
+				isAuthorised(msg.member, "Convenor", true).then(auth => {
+					if (auth) {
+						openCheckin(msg);
+					} else {
+						msg.reply(`Only convenors can use this command.`);
+					}
+				});
+				break;
+			case "!checkinsum":
+				isAuthorised(msg.member, "Convenor", true).then(auth => {
+					if (auth) {
+						checkinSummary(msg);
+					} else {
+						msg.reply(`Only convenors can use this command.`);
+					}
+				});
+				break;
+			case "!checkindet":
+				isAuthorised(msg.member, "Convenor", true).then(auth => {
+					if (auth) {
+						const validOptions = ["judge", "speaker"];
+						if (validOptions.includes(command[1].toLowerCase())) {
+							checkinDetailed(msg, command[1].toLowerCase());
+						} else {
+							msg.reply("You must include a type to return (Judge/Speaker)!");
+						}
 					} else {
 						msg.reply(`Only convenors can use this command.`);
 					}
