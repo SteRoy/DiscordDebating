@@ -6,6 +6,8 @@ const client = new Discord.Client();
 // TODO: remember to put the saveToFiles() back into the readreg and readdraw commands
 // TODO: add indicator that reg data is imported
 
+const defaultTournament = {"teams":[],"venues":[],"judges":[],"rounds":[],"regdata":{"teams":[],"judges":[]}};
+
 let token;
 let tournament_url;
 let sessionid;
@@ -28,6 +30,13 @@ fs.readFile('tournament.json', (err, data) => {
 	competition = JSON.parse(data);
 	console.log(`Restoring a tournament with ${competition.teams.length} registered teams, and ${competition.judges.length} judges.`);
 });
+
+function resetComp() {
+	competition = defaultTournament;
+	saveToFile();
+	
+	// TODO: strip everybody of Judge/Speaker roles.
+}
 
 function isAuthorised(user, level, exclusive) {
 	if (exclusive) {
@@ -581,6 +590,20 @@ client.on('message', msg => {
 							checkinDetailed(msg, command[1].toLowerCase());
 						} else {
 							msg.reply("You must include a type to return (Judge/Speaker)!");
+						}
+					} else {
+						msg.reply(`Only convenors can use this command.`);
+					}
+				});
+				break;
+			case "!resettournament":
+				isAuthorised(msg.member, "Convenor", true).then(auth => {
+					if (auth) {
+						const validOptions = ["yes im serious"];
+						if (validOptions.includes(command[1].toLowerCase())) {
+							resetComp();
+						} else {
+							msg.reply("You must include the confirmation statement (if you don't know what that is, don't use this)!");
 						}
 					} else {
 						msg.reply(`Only convenors can use this command.`);
