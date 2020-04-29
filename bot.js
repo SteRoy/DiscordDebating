@@ -3,8 +3,6 @@ const fs = require('fs');
 const spawn = require("child_process").spawn;
 const client = new Discord.Client();
 
-// TODO: remember to put the saveToFiles() back into the readreg and readdraw commands
-
 const defaultTournament = {"teams":[],"venues":[],"judges":[],"speakers": [], "rounds":[],"regdata":{"teams":[],"judges":[], "speakers": [], "childrenJ": [], "childrenS": []}};
 
 let token;
@@ -257,8 +255,8 @@ function registerTeam(msg, name) {
 							storeTeam(speakerOne, speakerTwo, teamname);
 							speakerOne.roles.add(teamRole).catch(console.error);
 							speakerTwo.roles.add(teamRole).catch(console.error);
-							speakerOne.setNickname(`[${teamname}] ${speakerOne.nickname}`.substring(0,32));
-							speakerTwo.setNickname(`[${teamname}] ${speakerTwo.nickname}`.substring(0,32));
+							speakerOne.setNickname(`[${teamname}] ${speakerOne.nickname.split("] ").pop()}`.substring(0,32)).catch(console.error);
+							speakerTwo.setNickname(`[${teamname}] ${speakerTwo.nickname.split("] ").pop()}`.substring(0,32)).catch(console.error);
 						}
 					});
 				} else {
@@ -428,6 +426,25 @@ function runTeamDraw(guild, msg) {
 		for (let i = 0; i < positions.length; i++ ) {
 			assignTeamToRoom(guild, debate.teams[i], debate.venue, positions[i]);
 			console.log(`Trying to assign ${debate.teams[i]} to ${positions[i]} in ${debate.venue}`);
+		}
+	});
+}
+
+function missingTeamsPrep(guild, msg) {
+	competition.rounds[competition.rounds.length - 1].forEach(debate => {
+		const positions = ["OG", "OO", "CG", "CO"];
+		for (let i = 0; i < positions.length; i++ ) {
+			const team = competition.teams.find(t => t.name.toLowerCase() === debate.teams[i]);
+			let f = true;
+			team.speakers.forEach(speakerID => {
+				const expectedRoomName = `${positions[i]} - Prep Room [${debate.venue}]`;
+				getChannelByName(guild, expectedRoomName).then(channel => {
+					if (typeof(channel.members.find(m => m.id === speakerID)) === typeof(undefined) && f) {
+						msg.reply(`Missing speaker in ${positions[i]} in venue: ${debate.venue}`);
+						f = false;
+					}
+				});
+			});
 		}
 	});
 }
@@ -887,6 +904,15 @@ client.on('message', msg => {
 				isAuthorised(msg.member, "Convenor", true).then(auth => {
 					if (auth) {
 						stopMotionRelease();
+					} else {
+						msg.reply(`Only convenors can use this command.`);
+					}
+				});
+				break;
+			case "!missing":
+				isAuthorised(msg.member, "Convenor", true).then(auth => {
+					if (auth) {
+						missingTeamsPrep(msg.guild, msg);
 					} else {
 						msg.reply(`Only convenors can use this command.`);
 					}
