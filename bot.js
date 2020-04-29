@@ -239,7 +239,7 @@ function unregisterTeam(msg) {
 }
 
 function registerTeam(msg, name) {
-	const teamname = name.join(" ");
+	const teamname = name.join(" ").toLowerCase();
 	const speakerOne = msg.member;
 	const speakerTwo = msg.mentions.members.first();
 	if (typeof(speakerTwo) === typeof(undefined)) {
@@ -249,7 +249,7 @@ function registerTeam(msg, name) {
 			if (speakerOne.roles.cache.has(speakerRole.id) && speakerTwo.roles.cache.has(speakerRole.id)) {
 				if (competition.regdata.teams.includes(teamname.toLowerCase())) {
 					getRoleByName(msg.guild.roles, "On Team").then(teamRole => {
-						if (speakerOne.roles.cache.has(teamRole.id) || speakerTwo.roles.cache.has(teamRole.id) || typeof(undefined) === typeof(competition.teams.find(t => t.name === name.toLowerCase())) ) {
+						if (speakerOne.roles.cache.has(teamRole.id) || speakerTwo.roles.cache.has(teamRole.id) || typeof(undefined) !== typeof(competition.teams.find(t => t.name === name)) ) {
 							msg.reply("You have already registered a team.");
 						} else {
 							storeTeam(speakerOne, speakerTwo, teamname);
@@ -257,6 +257,7 @@ function registerTeam(msg, name) {
 							speakerTwo.roles.add(teamRole).catch(console.error);
 							speakerOne.setNickname(`[${teamname}] ${speakerOne.nickname.split("] ").pop()}`.substring(0,32)).catch(console.error);
 							speakerTwo.setNickname(`[${teamname}] ${speakerTwo.nickname.split("] ").pop()}`.substring(0,32)).catch(console.error);
+							msg.reply(`Registered ${teamname} as a team!`);
 						}
 					});
 				} else {
@@ -452,8 +453,8 @@ function missingTeamsPrep(guild, msg) {
 function releaseInfoslideAndMotionProcessor(msg) {
 	const announceChannel = msg.guild.channels.cache.find(channel => channel.name === "announcements");
 	if (infoslide !== "") {
-		announceChannel.send(`@everyone, This round has an infoslide: ${infoslide}. The motion will be announced in 60 seconds.`);
-		setTimeout(() => { sendMotion(msg) }, 6000, "motionRelease");
+		announceChannel.send(`@everyone, This round has an infoslide: ${infoslide}. \n \n The motion will be announced in 60 seconds.`);
+		setTimeout(() => { sendMotion(msg) }, 60000, "motionRelease");
 	} else {
 		sendMotion(msg);
 	}
@@ -653,7 +654,7 @@ client.on('message', msg => {
 				} else if (msg.mentions.members === undefined) {
 					msg.reply("You must mention your teammate by placing the @ symbol before their name");
 				} else {
-					registerTeam(msg, command.slice(2).replace("  ", " "));
+					registerTeam(msg, command.slice(2));
 				}
 				break;
 			case "!disband":
