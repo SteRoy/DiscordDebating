@@ -33,12 +33,47 @@ fs.readFile('tournament.json', (err, data) => {
 	console.log(`Restoring a tournament with ${competition.teams.length} registered teams, and ${competition.judges.length} judges.`);
 });
 
-function resetComp() {
-	competition = Object.assign(competition, defaultTournament);
-	console.log("Resetting Tournament");
-	saveToFile();
-	
-	// TODO: strip everybody of Judge/Speaker roles.
+function resetComp(guild) {
+	let j = 0;
+	let t = 0;
+	let sc = 0;
+	getRoleByName(guild.roles, "Judge").then(judgeRole => {
+		getRoleByName(guild.roles, "Speaker").then(speakerRole => {
+			getRoleByName(guild.roles, "On Team").then(teamRole => {
+				competition.judges.forEach(judge => {
+					guild.members.fetch(judge.id).then(gm => {
+						gm.roles.remove(judge);
+						console.log(`Stripping J ${judge.nickname}`);
+						j++;
+					}).catch(console.error);
+				});
+				
+				competition.teams.forEach(team => {
+					team.speakers.forEach(sID => {
+						guild.members.fetch(sID).then(speaker => {
+							speaker.roles.remove(teamRole);
+							console.log(`Stripping T ${speaker.nickname}`);
+							t++;
+						}).catch(console.error);
+					});
+				});
+				
+				competition.speakers.forEach(s => {
+					guild.members.fetch(s.id).then(speaker => {
+						speaker.roles.remove(speakerRole);
+						console.log(`Stripping ${speaker.nickname}`);
+						sc++;
+					}).catch(console.error);
+				});
+				
+				
+				competition = Object.assign(competition, defaultTournament);
+				console.log("Resetting Tournament");
+				saveToFile();
+				console.log(`Stripped ${j} judges, ${sc} speakers and ${t} teams.`);
+			});
+		});
+	});
 }
 
 function isAuthorised(user, level, exclusive) {
@@ -862,7 +897,7 @@ client.on('message', msg => {
 					if (auth) {
 						const validOptions = ["yes im serious"];
 						if (validOptions.includes(command.slice(1).join(" ").toLowerCase())) {
-							resetComp();
+							resetComp(msg.guild);
 						} else {
 							msg.reply("You must include the confirmation statement (if you don't know what that is, don't use this)!");
 						}
