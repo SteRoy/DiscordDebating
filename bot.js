@@ -255,8 +255,17 @@ function registerTeam(msg, name) {
 							storeTeam(speakerOne, speakerTwo, teamname);
 							speakerOne.roles.add(teamRole).catch(console.error);
 							speakerTwo.roles.add(teamRole).catch(console.error);
-							speakerOne.setNickname(`[${teamname}] ${speakerOne.nickname.split("] ").pop()}`.substring(0,32)).catch(console.error);
-							speakerTwo.setNickname(`[${teamname}] ${speakerTwo.nickname.split("] ").pop()}`.substring(0,32)).catch(console.error);
+							if (speakerOne.nickname !== null && speakerTwo.nickname !== null) {
+								speakerOne.setNickname(`[${teamname}] ${speakerOne.nickname.split("] ").pop()}`.substring(0,32)).catch(console.error);
+								speakerTwo.setNickname(`[${teamname}] ${speakerTwo.nickname.split("] ").pop()}`.substring(0,32)).catch(console.error);
+							} else {
+								// nick doesn't exist, find speaker name, assign to nickname
+								console.log("Couldn't get nickname(s) for team reg...")
+								oneName = competition.speakers.find(s => s.id === speakerOne.id).name;
+								twoName = competition.speakers.find(s => s.id === speakerTwo.id).name;
+								speakerOne.setNickname(`[${teamname}] ${oneName}`.substring(0, 32));
+								speakerOne.setNickname(`[${teamname}] ${twoName}`.substring(0, 32));
+							}
 							msg.reply(`Registered ${teamname} as a team!`);
 						}
 					});
