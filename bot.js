@@ -40,7 +40,7 @@ function resetComp(guild) {
 			getRoleByName(guild.roles, "On Team").then(teamRole => {
 				competition.judges.forEach(judge => {
 					guild.members.fetch(judge.id).then(gm => {
-						gm.roles.remove(judge);
+						gm.roles.remove(judgeRole);
 						console.log(`Stripping J ${judge.nickname}`);
 						j++;
 					}).catch(console.error);
@@ -282,14 +282,21 @@ function getChannelByName(guild, channelName) {
 function createDebatingRoom(guild, roomName) {
 	// Create Category
 	const debatePositions = ["OG", "OO", "CG", "CO"];
-	guild.channels.create(roomName, {type: "category"}).then(category => {
-		debatePositions.forEach(pos => {
-			guild.channels.create(`${pos} - Prep Room [${roomName}]`, { type: "voice",  parent: category.id, userLimit: 2 });
+	getRoleByName(guild.roles, "Judge").then(judgeRole => {
+		getRoleByName(guild.roles, "On Team").then(teamRole => {
+			getRoleByName(guild.roles, "@everyone").then(everyone => {
+					guild.channels.create(roomName, {type: "category", permissionOverwrites: [{id: everyone.id, deny: ["VIEW_CHANNEL"]}, {id: teamRole.id, allow: ["VIEW_CHANNEL"]}, {id: judgeRole.id, allow: ["VIEW_CHANNEL"]}]}).then(category => {
+					debatePositions.forEach(pos => {
+						guild.channels.create(`${pos} - Prep Room [${roomName}]`, { type: "voice",  parent: category.id, userLimit: 2, bitrate: 128000 });
+					});
+					guild.channels.create(`${roomName} - Debate Room`, { type: "voice",  parent: category.id, bitrate: 128000});
+					guild.channels.create(`${roomName} - Judges Room`, { type: "voice",  parent: category.id, permissionOverwrites: [{id: everyone.id, deny: ["VIEW_CHANNEL"]}, {id: judgeRole.id, allow: ["VIEW_CHANNEL"]}], bitrate: 128000});
+					guild.channels.create(`${roomName} - Info`, { type: "text",  parent: category.id});
+				});
+			});
 		});
-		guild.channels.create(`${roomName} - Debate Room`, { type: "voice",  parent: category.id});
-		guild.channels.create(`${roomName} - Judges Room`, { type: "voice",  parent: category.id});
-		guild.channels.create(`${roomName} - Info`, { type: "text",  parent: category.id});
 	});
+
 }
 
 function createAllDrawVenues(msg) {
