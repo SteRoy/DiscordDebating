@@ -91,11 +91,7 @@ function isAuthorised(user, level, exclusive) {
 
 function doesUserHaveRole(user, roleName) {
 	return getRoleByName(user.guild.roles, roleName).then(roleID => {
-			if (user.roles.cache.has(roleID.id)) {
-				return true;
-			} else {
-				return false;
-			}
+			return user.roles.cache.has(roleID.id);
 	});
 }
 
@@ -639,7 +635,7 @@ client.on('ready', () => {
 });
 
 client.on('message', msg => {
-	if (msg.content.substring(0,1) == "!") {
+	if (msg.content.substring(0,1) === "!") {
 		const command = msg.content.split(" ");
 		switch(command[0]) {
 			case "!help":
@@ -649,7 +645,7 @@ client.on('message', msg => {
 				prepTimeLeft(msg);
 				break;
 			case "!register":
-				if (command.length == 1) {
+				if (command.length === 1) {
 					msg.reply("You need to supply a name")
 				} else if (command[command.length - 1].toLowerCase() !== "speaker" && command[command.length - 1].toLowerCase() !== "judge") {
 					msg.reply("You must specify if you are a Judge or a Speaker!");
@@ -850,7 +846,7 @@ client.on('message', msg => {
 					if (competition.regdata.teams.length > 0 && competition.regdata.judges.length > 0) {
 						if (auth) {
 							const validOptions = ["judge", "team"];
-							if (validOptions.includes(command[1].toLowerCase())) {
+							if (command[1] !== undefined && validOptions.includes(command[1].toLowerCase())) {
 								registrationDetailed(msg, command[1].toLowerCase());
 							} else {
 								msg.reply("You must include a type to return (Judge/Team)!");
