@@ -5,10 +5,13 @@ const client = new Discord.Client();
 
 const defaultTournament = {"teams":[],"venues":[],"judges":[],"speakers": [], "rounds":[],"regdata":{"teams":[],"judges":[], "speakers": [], "childrenJ": [], "childrenS": []}};
 
+const SlaveBot = require('./slaves.js');
+
 let token;
 let tournament_url;
 let sessionid;
 let csrftoken;
+let slaves = [];
 
 let comp_status;
 let prep_start;
@@ -24,12 +27,20 @@ fs.readFile(".config", (err,data) => {
 	sessionid = dict.sessionid;
 	tournament_url = dict["tournament_url"];
 	csrftoken = dict.csrftoken;
+	
+	for (let i=0; i<dict.slave_tokens.length; i++){ 
+		slaves.push(new SlaveBot(dict.slave_tokens[i], slaveCallback));
+	}
 	client.login(token);
 });
 fs.readFile('tournament.json', (err, data) => {
 	competition = JSON.parse(data);
 	console.log(`Restoring a tournament with ${competition.teams.length} registered teams, and ${competition.judges.length} judges.`);
 });
+
+function slaveCallback() {
+	console.log("Slave ready");
+}
 
 function resetComp(guild) {
 	let j = 0;
@@ -432,6 +443,16 @@ function allocateSpeakers(guild) {
 		
 	});
 	console.log("Prep time over");
+}
+
+function allocateSpeakersParallel(guild) {
+	let copyOfRounds = Object.assign(copyOfRounds, competition.rounds[competition.rounds.length - 1]);
+	let i = -1;
+	while (copyOfRounds !== []) {
+		i = (i + 1) % slaves.length;
+		slaves[i].handleRoom(copyOfRounds.pop());
+	}
+	console.log("Prep time over - parallel");
 }
 
 function runTeamDraw(guild, msg) {
