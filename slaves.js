@@ -1,9 +1,11 @@
 const Discord = require('discord.js');
+
 class SlaveBot {
-	constructor(token, cbWhenReady) {
+	constructor(token, cbWhenReady, competition) {
 		this.client = new Discord.Client();
 		this.client.login(token);
-		
+		this.competition = competition;
+
 		this.client.on('ready', () => {
 			console.log(`Logged in as ${this.client.user.tag}!`);
 			cbWhenReady();
@@ -27,7 +29,7 @@ class SlaveBot {
 	
 	handleRoom(room, guild) {
 		for (let i = 1; i < 4; i++) {
-			const team = room.teams[i];
+			const team = this.competition.teams.find(t => t.name.toLowerCase() === room.teams[i].toLowerCase());
 			team.speakers.forEach(sID => {
 				this.allocateUserToRoom(guild, sID, `${room.venue} - Debate Room`);
 			});

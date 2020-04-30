@@ -28,7 +28,7 @@ fs.readFile(".config", (err,data) => {
 	tournament_url = dict["tournament_url"];
 	csrftoken = dict.csrftoken;
 	
-	for (let i=0; i<dict.slave_tokens.length; i++){ 
+	for (let i = 0; i < dict.slave_tokens.length; i++){
 		slaves.push(new SlaveBot(dict.slave_tokens[i], slaveCallback));
 	}
 	client.login(token);
