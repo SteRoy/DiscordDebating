@@ -127,7 +127,7 @@ function helpCommand(msg) {
 function registerUser(msg, name, type) {
 	const fullname = name.join(" ");
 	const targetGM = msg.member;
-	const roleName = (type.toLowerCase() == "speaker" ? "Speaker" : "Judge");
+	const roleName = (type.toLowerCase() === "speaker" ? "Speaker" : "Judge");
 	if (competition.regdata.judges.length > 0 && competition.regdata.teams.length > 0) {
 		if (typeof(competition.judges.find(j => j.id === targetGM.id)) === typeof(undefined) && (typeof(competition.speakers.find(s => s.id === targetGM.id)) === typeof(undefined))) {
 			if (typeof(competition.judges.find(j => j.name === fullname.toLowerCase())) === typeof(undefined) && (typeof(competition.speakers.find(s => s.name === fullname.toLowerCase())) === typeof(undefined))) {
@@ -146,7 +146,7 @@ function registerUser(msg, name, type) {
 						return false;
 					}
 					
-					const safeguardRoleSearch = (roleName == "Speaker" ? competition.regdata.childrenS : competition.regdata.childrenJ);
+					const safeguardRoleSearch = (roleName === "Speaker" ? competition.regdata.childrenS : competition.regdata.childrenJ);
 					const indexOfEntry = srchArr.indexOf(fullname.toLowerCase());
 					
 					getRoleByName(msg.guild.roles, (safeguardRoleSearch[indexOfEntry] ? "Schools" : "Adult")).then(safeguardRole => {
@@ -199,7 +199,7 @@ function storeTeam(speakerOne, speakerTwo, teamName) {
 }
 
 function findSpeakersForTeamByName(name) {
-	return competition.teams.find(team => team.name == name.toLowerCase() ).speakers;
+	return competition.teams.find(team => team.name === name.toLowerCase() ).speakers;
 }
 
 function storeRegistration(adj, fname, role) {
