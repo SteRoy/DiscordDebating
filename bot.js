@@ -285,7 +285,7 @@ function getChannelByName(guild, channelName) {
 
 function createDebatingRoom(guild, roomName) {
 	// Create Category
-	const debatePositions = ["OG", "OO", "CG", "CO"];
+	const debatePositions = ["OO", "CG", "CO"];
 	getRoleByName(guild.roles, "Judge").then(judgeRole => {
 		getRoleByName(guild.roles, "On Team").then(teamRole => {
 			getRoleByName(guild.roles, "@everyone").then(everyone => {
@@ -407,8 +407,7 @@ function processRegData(msg) {
 	});
 }
 
-function allocateAllSpeakersAndJudges(guild) {
-	competition.rounds[competition.rounds.length - 1].forEach(debate => {
+function allocateJudges(guild) {
 		let toAllocate = [];
 		const chair = competition.judges.find(j => j.name.toLowerCase() === debate.chair.toLowerCase());
 		toAllocate.push(chair);
@@ -427,11 +426,13 @@ function allocateAllSpeakersAndJudges(guild) {
 				allocateUserToRoom(guild, allocation.id, `${debate.venue} - Debate Room`);
 			}
 		});
-		
-		console.log(debate.teams);
-		debate.teams.forEach(t => {
-			assignTeamToRoom(guild, t, `${debate.venue}`, "debate");
-		});
+}
+
+function allocateSpeakers(guild) {
+	competition.rounds[competition.rounds.length - 1].forEach(debate => {
+		for (let i = 1; i < 4; i++) {
+			assignTeamToRoom(guild, debate.teams[i], `${debate.venue}`, "debate");
+		}
 		
 	});
 	console.log("Prep time over");
@@ -439,29 +440,10 @@ function allocateAllSpeakersAndJudges(guild) {
 
 function runTeamDraw(guild, msg) {
 	competition.rounds[competition.rounds.length - 1].forEach(debate => {
-		const positions = ["OG", "OO", "CG", "CO"];
+		const positions = ["debate", "OO", "CG", "CO"];
 		for (let i = 0; i < positions.length; i++ ) {
 			assignTeamToRoom(guild, debate.teams[i], debate.venue, positions[i]);
 			console.log(`Trying to assign ${debate.teams[i]} to ${positions[i]} in ${debate.venue}`);
-		}
-	});
-}
-
-function missingTeamsPrep(guild, msg) {
-	competition.rounds[competition.rounds.length - 1].forEach(debate => {
-		const positions = ["OG", "OO", "CG", "CO"];
-		for (let i = 0; i < positions.length; i++ ) {
-			const team = competition.teams.find(t => t.name.toLowerCase() === debate.teams[i]);
-			let f = true;
-			team.speakers.forEach(speakerID => {
-				const expectedRoomName = `${positions[i]} - Prep Room [${debate.venue}]`;
-				getChannelByName(guild, expectedRoomName).then(channel => {
-					if (typeof(channel.members.find(m => m.id === speakerID)) === typeof(undefined) && f) {
-						msg.reply(`Missing speaker in ${positions[i]} in venue: ${debate.venue}`);
-						f = false;
-					}
-				});
-			});
 		}
 	});
 }
@@ -482,9 +464,11 @@ function sendMotion(msg) {
 	
 	setTimeout(() => { timeElapsed(5, msg) }, 300000, "5minElapsed");
 	setTimeout(() => { timeElapsed(10, msg) }, 600000, "10minElapsed");
+	setTimeout(() => { timeElapsed(12, msg) }, 720000, "12minElapsed");
 	setTimeout(() => { timeElapsed(13, msg) }, 780000, "13minElapsed");
 	setTimeout(() => { timeElapsed(14, msg) }, 840000, "14minElapsed");
-	setTimeout(() => { allocateAllSpeakersAndJudges(msg.guild) }, 900000, "prepTimeFinishes");
+	setTimeout(() => { allocateJudges(msg.guild) }, 780000, "judgeAllocate");
+	setTimeout(() => { allocateSpeakers(msg.guild) }, 900000, "prepTimeFinishes");
 }
 
 function stopMotionRelease() {
@@ -493,7 +477,11 @@ function stopMotionRelease() {
 
 function timeElapsed(mins, msg) {
 	const announceChannel = msg.guild.channels.cache.find(channel => channel.name === "announcements");
-	announceChannel.send(`@everyone You have ${15 - mins} minute(s) remaining of preparation time.`);
+	if (mins === 12) {
+		announceChannel.send(`@Judge will be moved to debate rooms in 60 seconds!`);
+	} else {
+		announceChannel.send(`@everyone You have ${15 - mins} minute(s) remaining of preparation time.`);
+	}
 }
 
 function setMotion(msg, motionText) {
