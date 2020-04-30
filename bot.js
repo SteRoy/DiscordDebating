@@ -249,6 +249,10 @@ function registerTeam(msg, name) {
 	const teamname = name.join(" ").toLowerCase();
 	const speakerOne = msg.member;
 	const speakerTwo = msg.mentions.members.first();
+	if (speakerOne === speakerTwo) {
+		msg.reply("You cannot be your own teammate!")
+		return;
+	}
 	if (typeof(speakerTwo) === typeof(undefined)) {
 		msg.reply("Invalid teammate");
 	} else {
