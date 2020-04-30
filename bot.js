@@ -463,7 +463,7 @@ function sendMotion(msg) {
 	setTimeout(() => { timeElapsed(12, msg) }, 720000, "12minElapsed");
 	setTimeout(() => { timeElapsed(13, msg) }, 780000, "13minElapsed");
 	setTimeout(() => { timeElapsed(14, msg) }, 840000, "14minElapsed");
-	setTimeout(() => { allocateJudges(msg.guild) }, 780000, "judgeAllocate");
+	setTimeout(() => { allocateJudges(msg.guild) }, 810000, "judgeAllocate");
 	setTimeout(() => { allocateSpeakers(msg.guild) }, 900000, "prepTimeFinishes");
 }
 
@@ -474,7 +474,7 @@ function stopMotionRelease() {
 function timeElapsed(mins, msg) {
 	const announceChannel = msg.guild.channels.cache.find(channel => channel.name === "announcements");
 	if (mins === 12) {
-		announceChannel.send(`@Judge will be moved to debate rooms in 60 seconds!`);
+		announceChannel.send(`@Judge will be moved to debate rooms in 90 seconds!`);
 	} else {
 		announceChannel.send(`@everyone You have ${15 - mins} minute(s) remaining of preparation time.`);
 	}
