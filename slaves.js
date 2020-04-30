@@ -29,7 +29,7 @@ class SlaveBot {
 		for (let i = 1; i < 4; i++) {
 			const team = room.teams[i];
 			team.speakers.forEach(sID => {
-				allocateUserToRoom(guild, sID, `${room.venue} - Debate Room`);
+				this.allocateUserToRoom(guild, sID, `${room.venue} - Debate Room`);
 			});
 		}
 	}
