@@ -183,8 +183,15 @@ function registrationSummary(msg) {
 }
 
 function registrationDetailed(msg, type) {
-	const srchArrRegistered = type === "judge" ? competition.judges : competition.teams;
-	const srchArrRaw = type === "judge" ? competition.regdata.judges : competition.regdata.teams;
+	let srchArrRegistered;
+	let srchArrRaw;
+	if (type === "speaker") {
+		srchArrRegistered = competition.speakers;
+		srchArrRaw = competition.regdata.speakers;
+	} else {
+		srchArrRegistered = type === "judge" ? competition.judges : competition.teams;
+		srchArrRaw = type === "judge" ? competition.regdata.judges : competition.regdata.teams;
+	}
 
 	let missing = [];
 	srchArrRaw.forEach(entry => {
@@ -198,7 +205,24 @@ function registrationDetailed(msg, type) {
 		missing.forEach(m => {
 			msgO.push(m);
 		});
-		msg.reply(`!register: Missing ${type}s: \n ${msgO.join(", \n")}`);
+		if (type !== "speaker") {
+			msg.reply(`!register: Missing ${type}s: \n ${msgO.join(", \n")}`);
+		} else {
+			let embedSpeakers = {
+				title: 'Missing Speakers',
+				fields: []
+			};
+			msgO.sort();
+			for (i = 0; i < msgO.length; i++) {
+				const ulimit = i + 10 < msgO.length ? i + 10 : msgO.length;
+				const speakerSection = msgO.slice(i, ulimit);
+				embedSpeakers.fields.push({
+					name: "Missing Speakers", inline: true, value: speakerSection.join(", \n ")
+				});
+				i += 9;
+			}
+			msg.reply({ embed: embedSpeakers });
+		}
 	} else {
 		msg.reply(`!register: No ${type}s missing!`);
 	}
@@ -236,7 +260,7 @@ function unregisterTeam(msg) {
 		teamsToRemove[0].speakers.forEach(speakerID => {
 			msg.guild.members.fetch(speakerID).then(speakerObject => {
 				speakerObject.roles.remove(teamRole).catch(console.error);
-				speakerObject.setNickname(`${speakerObject.nickname.split("] ").pop()}`);
+				speakerObject.setNickname(`${speakerObject.displayName.split("] ").pop()}`);
 			});
 		});
 	});
@@ -266,17 +290,9 @@ function registerTeam(msg, name) {
 							storeTeam(speakerOne, speakerTwo, teamname);
 							speakerOne.roles.add(teamRole).catch(console.error);
 							speakerTwo.roles.add(teamRole).catch(console.error);
-							if (speakerOne.nickname !== null && speakerTwo.nickname !== null) {
-								speakerOne.setNickname(`[${teamname}] ${speakerOne.nickname.split("] ").pop()}`.substring(0,32)).catch(console.error);
-								speakerTwo.setNickname(`[${teamname}] ${speakerTwo.nickname.split("] ").pop()}`.substring(0,32)).catch(console.error);
-							} else {
-								// nick doesn't exist, find speaker name, assign to nickname
-								console.log("Couldn't get nickname(s) for team reg...")
-								oneName = competition.speakers.find(s => s.id === speakerOne.id).name;
-								twoName = competition.speakers.find(s => s.id === speakerTwo.id).name;
-								speakerOne.setNickname(`[${teamname}] ${oneName}`.substring(0, 32));
-								speakerOne.setNickname(`[${teamname}] ${twoName}`.substring(0, 32));
-							}
+							speakerOne.setNickname(`[${teamname}] ${speakerOne.displayName.split("] ").pop()}`.substring(0,32)).catch(console.error);
+							speakerTwo.setNickname(`[${teamname}] ${speakerTwo.displayName.split("] ").pop()}`.substring(0,32)).catch(console.error);
+
 							msg.reply(`Registered ${teamname} as a team!`);
 						}
 					});
@@ -865,11 +881,11 @@ client.on('message', msg => {
 				isAuthorised(msg.member, "Convenor", true).then(auth => {
 					if (competition.regdata.teams.length > 0 && competition.regdata.judges.length > 0) {
 						if (auth) {
-							const validOptions = ["judge", "team"];
+							const validOptions = ["judge", "team", "speaker"];
 							if (command[1] !== undefined && validOptions.includes(command[1].toLowerCase())) {
 								registrationDetailed(msg, command[1].toLowerCase());
 							} else {
-								msg.reply("You must include a type to return (Judge/Team)!");
+								msg.reply("You must include a type to return (Judge/Team/Speaker)!");
 							}
 						} else {
 							msg.reply(`Only convenors can use this command.`);
