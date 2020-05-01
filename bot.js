@@ -52,7 +52,7 @@ function resetComp(guild) {
 				competition.judges.forEach(judge => {
 					guild.members.fetch(judge.id).then(gm => {
 						gm.roles.remove(judgeRole);
-						console.log(`Stripping J ${judge.nickname}`);
+						console.log(`Stripping J ${judge.displayName}`);
 						j++;
 					}).catch(console.error);
 				});
@@ -61,7 +61,7 @@ function resetComp(guild) {
 					team.speakers.forEach(sID => {
 						guild.members.fetch(sID).then(speaker => {
 							speaker.roles.remove(teamRole);
-							console.log(`Stripping T ${speaker.nickname}`);
+							console.log(`Stripping T ${speaker.displayName}`);
 							t++;
 						}).catch(console.error);
 					});
@@ -70,7 +70,7 @@ function resetComp(guild) {
 				competition.speakers.forEach(s => {
 					guild.members.fetch(s.id).then(speaker => {
 						speaker.roles.remove(speakerRole);
-						console.log(`Stripping ${speaker.nickname}`);
+						console.log(`Stripping ${speaker.displayName}`);
 						sc++;
 					}).catch(console.error);
 				});
@@ -359,7 +359,7 @@ function allocateUserToRoom(guild, userID, channelName) {
 			if (user.voice.channel !== null){
 				user.voice.setChannel(newChannel);
 			} else {
-				console.log(`${user.nickname} is not in a voice channel - ${newChannel.name}`);
+				console.log(`${user.displayName} is not in a voice channel - ${newChannel.name}`);
 			}
 		});
 	}
