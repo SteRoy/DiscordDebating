@@ -454,7 +454,7 @@ function allocateSpeakersParallel(guild) {
 	let i = -1;
 	while (copyOfRounds !== []) {
 		i = (i + 1) % slaves.length;
-		slaves[i].handleRoom(copyOfRounds.pop());
+		slaves[i].handleRoom(copyOfRounds.pop(), guild);
 	}
 	console.log("Prep time over - parallel");
 }
