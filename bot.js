@@ -202,27 +202,23 @@ function registrationDetailed(msg, type) {
 	
 	if (missing.length !== 0) {
 		let msgO = [];
+		let embedSpeakers = {
+			title: `Missing ${type}`,
+			fields: []
+		};
 		missing.forEach(m => {
 			msgO.push(m);
 		});
-		if (type !== "speaker") {
-			msg.reply(`!register: Missing ${type}s: \n ${msgO.join(", \n")}`);
-		} else {
-			let embedSpeakers = {
-				title: 'Missing Speakers',
-				fields: []
-			};
-			msgO.sort();
-			for (i = 0; i < msgO.length; i++) {
-				const ulimit = i + 10 < msgO.length ? i + 10 : msgO.length;
-				const speakerSection = msgO.slice(i, ulimit);
-				embedSpeakers.fields.push({
-					name: "Missing Speakers", inline: true, value: speakerSection.join(", \n ")
-				});
-				i += 9;
-			}
-			msg.reply({ embed: embedSpeakers });
+		msgO.sort();
+		for (i = 0; i < msgO.length; i++) {
+			const ulimit = i + 10 < msgO.length ? i + 10 : msgO.length;
+			const speakerSection = msgO.slice(i, ulimit);
+			embedSpeakers.fields.push({
+				name: `Missing (${speakerSection[0].substr(0, 1)} - ${speakerSection[speakerSection.length - 1].substr(0,1)})`, inline: true, value: speakerSection.join(", \n ")
+			});
+			i += 9;
 		}
+		msg.reply({ embed: embedSpeakers });
 	} else {
 		msg.reply(`!register: No ${type}s missing!`);
 	}
@@ -505,7 +501,7 @@ function sendMotion(msg) {
 	setTimeout(() => { timeElapsed(13, msg) }, 780000, "13minElapsed");
 	setTimeout(() => { timeElapsed(14, msg) }, 840000, "14minElapsed");
 	setTimeout(() => { allocateJudges(msg.guild) }, 810000, "judgeAllocate");
-	setTimeout(() => { allocateSpeakers(msg.guild) }, 900000, "prepTimeFinishes");
+	setTimeout(() => { allocateSpeakersParallel(msg.guild) }, 900000, "prepTimeFinishes");
 }
 
 function stopMotionRelease() {
@@ -951,10 +947,10 @@ client.on('message', msg => {
 					}
 				});
 				break;
-			case "!missing":
+			case "!speakerallocation":
 				isAuthorised(msg.member, "Convenor", true).then(auth => {
 					if (auth) {
-						missingTeamsPrep(msg.guild, msg);
+						allocateSpeakers(msg.guild);
 					} else {
 						msg.reply(`Only convenors can use this command.`);
 					}
