@@ -21,19 +21,7 @@ let infoslide = "";
 
 let private_urls = [];
 
-var competition;
-fs.readFile(".config", (err,data) => {
-	dict = JSON.parse(data);
-	token = dict.token;
-	sessionid = dict.sessionid;
-	tournament_url = dict["tournament_url"];
-	csrftoken = dict.csrftoken;
-	
-	for (let i = 0; i < dict.slave_tokens.length; i++){
-		slaves.push(new SlaveBot(dict.slave_tokens[i], slaveCallback));
-	}
-	client.login(token);
-});
+var competition = {};
 fs.readFile('tournament.json', (err, data) => {
 	competition = JSON.parse(data);
 	console.log(`Restoring a tournament with ${competition.teams.length} registered teams, and ${competition.judges.length} judges.`);
@@ -42,6 +30,19 @@ fs.readFile('private-urls.json', (err, data) => {
 	private_urls = JSON.parse(data);
 	console.log(`Loaded ${private_urls.length} private URLS`);
 });
+fs.readFile(".config", (err,data) => {
+	dict = JSON.parse(data);
+	token = dict.token;
+	sessionid = dict.sessionid;
+	tournament_url = dict["tournament_url"];
+	csrftoken = dict.csrftoken;
+	
+	for (let i = 0; i < dict.slave_tokens.length; i++){
+		slaves.push(new SlaveBot(dict.slave_tokens[i], slaveCallback, competition));
+	}
+	client.login(token);
+});
+
 
 function userRequestsPrivateURL(user) {
 	doesUserHaveRole(user, "Speaker").then(speaker => {
@@ -453,6 +454,7 @@ function processRegData(msg) {
 }
 
 function allocateJudges(guild) {
+	competition.rounds[competition.rounds.length - 1].forEach(debate => {
 		let toAllocate = [];
 		const chair = competition.judges.find(j => j.name.toLowerCase() === debate.chair.toLowerCase());
 		toAllocate.push(chair);
@@ -471,6 +473,7 @@ function allocateJudges(guild) {
 				allocateUserToRoom(guild, allocation.id, `${debate.venue} - Debate Room`);
 			}
 		});
+	});
 }
 
 function allocateSpeakers(guild) {
@@ -484,23 +487,26 @@ function allocateSpeakers(guild) {
 }
 
 function allocateSpeakersParallel(guild) {
-	let copyOfRounds = Object.assign(copyOfRounds, competition.rounds[competition.rounds.length - 1]);
+	let copyOfRounds = [];
+	copyOfRounds = competition.rounds[competition.rounds.length - 1].slice();
 	let i = -1;
 	while (copyOfRounds !== []) {
 		i = (i + 1) % slaves.length;
+		slaves[i].updateComp(competition);
 		slaves[i].handleRoom(copyOfRounds.pop(), guild);
 	}
 	console.log("Prep time over - parallel");
 }
 
 function runTeamDraw(guild, msg) {
-	competition.rounds[competition.rounds.length - 1].forEach(debate => {
-		const positions = ["debate", "OO", "CG", "CO"];
-		for (let i = 0; i < positions.length; i++ ) {
-			assignTeamToRoom(guild, debate.teams[i], debate.venue, positions[i]);
-			console.log(`Trying to assign ${debate.teams[i]} to ${positions[i]} in ${debate.venue}`);
-		}
-	});
+	let copyOfRounds = [];
+	copyOfRounds = competition.rounds[competition.rounds.length - 1].slice();
+	let i = -1;
+	while (copyOfRounds !== []) {
+		i = (i + 1) % slaves.length;
+		slaves[i].updateComp(competition);
+		slaves[i].handlePrep(copyOfRounds.pop(), guild);
+	}
 }
 
 function releaseInfoslideAndMotionProcessor(msg) {
@@ -956,8 +962,15 @@ client.on('message', msg => {
 			case "!endprep":
 				isAuthorised(msg.member, "Convenor", true).then(auth => {
 					if (auth) {
+						allocateJudges(msg.guild);
+						allocateSpeakersParallel(msg.guild);
 						clearTimeout("prepTimeFinishes");
-						allocateAllSpeakersAndJudges(msg.guild);
+						clearTimeout("judgeAllocate");
+						clearTimeout("5minElapsed");
+						clearTimeout("10minElapsed");
+						clearTimeout("12minElapsed");
+						clearTimeout("13minElapsed");
+						clearTimeout("14minElapsed");
 					} else {
 						msg.reply(`Only convenors can use this command.`);
 					}
@@ -975,7 +988,7 @@ client.on('message', msg => {
 			case "!speakerallocation":
 				isAuthorised(msg.member, "Convenor", true).then(auth => {
 					if (auth) {
-						allocateSpeakers(msg.guild);
+						allocateSpeakersParallel(msg.guild);
 					} else {
 						msg.reply(`Only convenors can use this command.`);
 					}
