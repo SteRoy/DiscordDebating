@@ -19,6 +19,7 @@ let prep_start;
 let motion = "";
 let infoslide = "";
 
+let private_urls = [];
 
 var competition;
 fs.readFile(".config", (err,data) => {
@@ -37,6 +38,27 @@ fs.readFile('tournament.json', (err, data) => {
 	competition = JSON.parse(data);
 	console.log(`Restoring a tournament with ${competition.teams.length} registered teams, and ${competition.judges.length} judges.`);
 });
+fs.readFile('private-urls.json', (err, data) => {
+	private_urls = JSON.parse(data);
+	console.log(`Loaded ${private_urls.length} private URLS`);
+});
+
+function userRequestsPrivateURL(user) {
+	doesUserHaveRole(user, "Speaker").then(speaker => {
+		const srchArr = speaker ? competition.speakers : competition.judges;
+		const userO = srchArr.find(o => o.id === user.id);
+		if (typeof(userO) !== typeof(undefined)) {
+			const url = private_urls.find(o => o.name.toLowerCase() === userO.name);
+			sendUserDM(user, `Hey there, this is your private URL: ${url.url}`);
+		}
+	});
+}
+
+function sendUserDM(user, message) {
+	user.createDM().then(dm => {
+		dm.send(message);
+	});
+}
 
 function slaveCallback() {
 	console.log("Slave ready");
@@ -203,7 +225,7 @@ function registrationDetailed(msg, type) {
 	if (missing.length !== 0) {
 		let msgO = [];
 		let embedSpeakers = {
-			title: `Missing ${type}`,
+			title: `Missing ${type}s (${srchArrRaw.length - srchArrRegistered.length}/${srchArrRaw.length})`,
 			fields: []
 		};
 		missing.forEach(m => {
@@ -250,10 +272,10 @@ function saveToFile() {
 
 function unregisterTeam(msg) {
 	const teamMember = msg.member;
-	const teamsToRemove = competition.teams.filter(team => team.speakers.includes(teamMember.id) );
-	const teamRemoveIndex = competition.teams.indexOf(teamsToRemove[0]);
+	const teamsToRemove = competition.teams.find(team => team.speakers.includes(teamMember.id) );
+	const teamRemoveIndex = competition.teams.indexOf(teamsToRemove);
 	getRoleByName(msg.guild.roles, "On Team").then(teamRole => {
-		teamsToRemove[0].speakers.forEach(speakerID => {
+		teamsToRemove.speakers.forEach(speakerID => {
 			msg.guild.members.fetch(speakerID).then(speakerObject => {
 				speakerObject.roles.remove(teamRole).catch(console.error);
 				speakerObject.setNickname(`${speakerObject.displayName.split("] ").pop()}`);
@@ -693,6 +715,9 @@ client.on('message', msg => {
 				} else {
 					registerTeam(msg, command.slice(2));
 				}
+				break;
+			case "!url":
+				userRequestsPrivateURL(msg.member);
 				break;
 			case "!disband":
 				isAuthorised(msg.member, "On Team", true).then(auth => {
